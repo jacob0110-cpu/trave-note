@@ -22,6 +22,14 @@ header{background:var(--head);color:#fff;padding:calc(14px + env(safe-area-inset
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px}
 h1{font-size:1.3rem;font-weight:700;letter-spacing:.04em}
 .reset{font-size:.8rem;padding:6px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.35);color:#fff}
+.tr{display:flex;align-items:center;gap:10px}
+.chip{font-size:.74rem;color:#fff;opacity:.92;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.chip::before{content:"";width:8px;height:8px;border-radius:50%;background:#9db8b8}
+.chip[data-s=ok]::before{background:#6ee7a8}
+.chip[data-s=sync]::before{background:var(--accent)}
+.chip[data-s=err]::before{background:#ff8a80}
+.cloudbox{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:16px;display:grid;gap:10px}
+.cloudbox .dnote{margin:0;white-space:pre-line}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
 .stat small{display:block;font-size:.78rem;opacity:.75}
 .stat b{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
@@ -142,7 +150,7 @@ details.place summary small{display:block;color:var(--muted);font-weight:400;fon
 body{padding:0;background:#fff;font-size:12pt}
 header{background:#fff;color:#000;border-bottom:2px solid #000;border-radius:0;padding:0 0 10px}
 .wrap{max-width:none}
-.reset,nav,.add,.panel,.del,.ed-b,.pv,.use,.chev,.plinks button,.bar,dialog{display:none!important}
+.reset,.chip,nav,.add,.panel,.del,.ed-b,.pv,.use,.chev,.plinks button,.bar,dialog{display:none!important}
 main section[hidden]{display:block!important}
 main section{margin-bottom:20px}
 .sheet,.card,.tk,details.place{border:1px solid var(--line)}
@@ -160,7 +168,10 @@ main section{margin-bottom:20px}
   <div class="wrap">
     <div class="top">
       <h1>旅行隨身筆記本</h1>
-      <button class="reset" onclick="$('dm').showModal()">資料管理</button>
+      <div class="tr">
+        <button class="chip" id="sync-chip" onclick="$('dm').showModal()" hidden></button>
+        <button class="reset" onclick="$('dm').showModal()">資料管理</button>
+      </div>
     </div>
     <div class="stats">
       <div class="stat"><small>行李準備</small><b id="st-prog">0 / 0</b><div class="bar"><i id="st-bar"></i></div></div>
@@ -268,7 +279,12 @@ main section{margin-bottom:20px}
 
 <dialog id="dm">
   <h2>資料管理</h2>
-  <p class="dnote">資料只存在這支手機的瀏覽器裡。換手機或清除瀏覽資料前，記得先下載備份。</p>
+  <div class="cloudbox" id="cloud-box" hidden>
+    <b>雲端同步</b>
+    <p class="dnote" id="cloud-note"></p>
+    <button class="btn" id="cloud-btn" onclick="cloudBtn()">使用 Google 登入</button>
+  </div>
+  <p class="dnote">資料先存在這個瀏覽器裡。換裝置或清除瀏覽資料前，記得先下載備份；登入雲端同步後，各裝置會自動共用。</p>
   <div class="dact">
     <button class="btn" onclick="exportData()">下載備份檔</button>
     <label class="btn ghost">匯入備份檔<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0]);this.value=''"></label>
@@ -310,12 +326,29 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 
 // === 儲存（LocalStorage，資料只留在這支手機）===
-// 舊資料只有單張照片（image），讀取時自動轉成多張（images）
-const norm=i=>{if(i&&typeof i==='object'&&!Array.isArray(i.images)&&'image' in i){i.images=i.image?[i.image]:[];delete i.image}return i};
+const jget=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))||f}catch(e){return f}};
+const jset=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+// 舊資料只有單張照片（image），讀取時自動轉成多張（images）；每筆資料都有版本時間 u（同步用）
+const norm=i=>{
+  if(i&&typeof i==='object'){
+    if(!Array.isArray(i.images)&&'image' in i){i.images=i.image?[i.image]:[];delete i.image}
+    if(!i.u)i.u=Number(i.id)||1;
+  }
+  return i;
+};
+const sig=x=>JSON.stringify(Object.assign({},x,{u:0}));
 const Store={
   get:k=>{try{return JSON.parse(localStorage.getItem('travel_'+k)||'[]').map(norm)}catch(e){return[]}},
-  set:(k,d)=>{try{localStorage.setItem('travel_'+k,JSON.stringify(d));return true}
-    catch(e){alert('儲存空間已滿，請刪除部分舊照片後再試。');return false}}
+  // 寫入但不標記為「本機修改」（套用雲端資料時用）
+  raw:(k,d)=>{try{localStorage.setItem('travel_'+k,JSON.stringify(d));return true}catch(e){return false}},
+  // 一般寫入：有變動的項目更新版本時間，被刪掉的項目記下刪除時間（同步用）
+  set:(k,d)=>{
+    const now=Date.now(),old=new Map(Store.get(k).map(x=>[String(x.id),x])),seen=new Set(),tomb=jget('travel__tomb',{});
+    d.forEach(x=>{const id=String(x.id),o=old.get(id);seen.add(id);x.u=(!o||sig(o)!==sig(x))?Math.max(now,(o?o.u:0)+1):o.u});
+    old.forEach((o,id)=>{if(!seen.has(id))tomb[k+'_'+id]={t:k,i:o.id,u:Math.max(now,(o.u||0)+1)}});
+    if(!Store.raw(k,d)){alert('儲存空間已滿，請刪除部分舊照片後再試。');return false}
+    jset('travel__tomb',tomb);Sync.dirty();return true;
+  }
 };
 
 // 壓縮照片，避免塞滿 LocalStorage
@@ -639,12 +672,20 @@ function importData(file){
 }
 function printAll(){$('dm').close();setTimeout(()=>window.print(),150)}
 
-function clearData(){
-  if(!confirm('確定要清除所有旅行資料嗎？清除後無法復原。'))return;
+async function clearData(){
+  const cloud=Sync.signedIn();
+  if(!confirm(cloud?'確定要清除所有旅行資料嗎？\n這會連雲端上的資料一起清除，所有已登入的裝置都會被清空，無法復原。':'確定要清除所有旅行資料嗎？清除後無法復原。'))return;
+  // 0. 已登入：先清雲端（失敗就整個取消，避免本機清了、雲端又同步回來）
+  if(cloud){
+    try{await Sync.wipeCloud()}
+    catch(e){console.error(e);alert('雲端資料清除失敗（可能沒有網路），所以什麼都沒有清除。請連上網路後再試一次。');return}
+  }
   // 1. 清掉所有儲存（含用完即丟的暫存鍵）
+  const uid=localStorage.getItem('travel__uid');
   [localStorage,sessionStorage].forEach(st=>{
     try{Object.keys(st).filter(k=>k.startsWith('travel_')).forEach(k=>st.removeItem(k))}catch(e){}
   });
+  if(cloud&&uid)localStorage.setItem('travel__uid',uid);
   // 2. 清掉畫面上殘留的暫存、查詢結果與表單內容
   pending=null;
   [looked,busy,cands].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
@@ -660,6 +701,221 @@ function clearData(){
   render();$('dm').close();switchTab('checklist');
 }
 
+// === 雲端同步：Google 登入、每人各自私有、多裝置自動同步（Firebase）===
+// 資料先存在本機（離線也能用），登入後在背景和雲端雙向同步。
+// 每筆資料各自帶版本時間，兩邊都改過時以「較新的」為準；刪除會留下記號，避免被另一台裝置補回來。
+const FIREBASE_CONFIG={
+  apiKey:'AIzaSyBv15gb-SNFfTO57ijZGn7rUw7BERav1zg',
+  authDomain:'trave-note.firebaseapp.com',
+  projectId:'trave-note',
+  storageBucket:'trave-note.firebasestorage.app',
+  messagingSenderId:'24565989238',
+  appId:'1:24565989238:web:65609a500448f5741d0457'
+};   // ← 把 Firebase 專案的設定貼在這裡
+
+const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接碰 Firebase）
+  async load(){
+    const v='10.14.1',base='https://www.gstatic.com/firebasejs/'+v+'/';
+    for(const f of ['firebase-app-compat.js','firebase-auth-compat.js','firebase-firestore-compat.js'])
+      await new Promise((ok,no)=>{const e=document.createElement('script');e.src=base+f;e.onload=ok;e.onerror=()=>no(new Error('載入失敗：'+f));document.head.appendChild(e)});
+    firebase.initializeApp(FIREBASE_CONFIG);this.auth=firebase.auth();this.db=firebase.firestore();
+  },
+  onAuth(cb){this.auth.onAuthStateChanged(cb)},
+  async signIn(){
+    const p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:'select_account'});
+    try{await this.auth.signInWithPopup(p)}
+    catch(e){
+      if(e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment')return this.auth.signInWithRedirect(p);
+      if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request')return;
+      throw e;
+    }
+  },
+  signOut(){return this.auth.signOut()},
+  col(uid,n){return this.db.collection('users').doc(uid).collection(n)},
+  listen(uid,onChanges,onErr){return this.col(uid,'items').onSnapshot(sn=>onChanges(sn.docChanges().map(c=>({type:c.type,id:c.doc.id,data:c.doc.data()}))),onErr)},
+  putItem(uid,id,data){return this.col(uid,'items').doc(id).set(data)},
+  putPhoto(uid,h,d){return this.col(uid,'photos').doc(h).set({d})},
+  async getPhoto(uid,h){const sn=await this.col(uid,'photos').doc(h).get();return sn.exists?sn.data().d:null},
+  async listItems(uid){const sn=await this.col(uid,'items').get();return sn.docs.map(d=>({id:d.id,data:d.data()}))},
+  async deletePhotos(uid){
+    const sn=await this.col(uid,'photos').get();
+    for(let i=0;i<sn.docs.length;i+=400){const b=this.db.batch();sn.docs.slice(i,i+400).forEach(d=>b.delete(d.ref));await b.commit()}
+  }
+};
+const Cloud=window.__CLOUD||FB;
+const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
+const PHOTO_TYPES=['souvenirs','expenses','tickets'];
+
+function hashStr(str){  // 照片內容指紋：同一張照片只上傳一次
+  let h1=0xdeadbeef,h2=0x41c6ce57;
+  for(let i=0;i<str.length;i++){const c=str.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return (4294967296*(2097151&h2)+(h1>>>0)).toString(36)+str.length.toString(36);
+}
+
+const Sync=(()=>{
+  let uid=null,user=null,unsub=null,pushing=false,again=false,timer=null,retry=null,q=Promise.resolve(),booted=false,status='out',lastErr='',first=true,bigWarned=false;
+  const UP=new Set(jget('travel__photos',[]));
+  const getSync=k=>jget('travel__sync',{})[k]||0;
+  const setSync=(k,u)=>{const m=jget('travel__sync',{});m[k]=u;jset('travel__sync',m)};
+  const setTomb=(k,t,i,u)=>{const m=jget('travel__tomb',{});m[k]={t,i,u};jset('travel__tomb',m)};
+  const inApp=/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent);
+
+  function paint(){
+    const chip=$('sync-chip'),box=$('cloud-box'),note=$('cloud-note'),btn=$('cloud-btn');
+    if(!CLOUD_ON){chip.hidden=true;box.hidden=false;btn.hidden=true;
+      note.textContent='尚未設定雲端同步。設定完成後，就能用 Google 帳號讓電腦和手機自動同步。';return}
+    box.hidden=false;btn.hidden=false;chip.hidden=false;
+    const off=!navigator.onLine&&status!=='out';
+    const st=off?'err':status;
+    chip.dataset.s=st;
+    chip.textContent={out:'未登入',sync:'同步中…',ok:'已同步',err:off?'離線':'同步失敗'}[st];
+    if(uid){
+      const t=jget('travel__last',0);
+      note.textContent='已登入：'+(user&&user.email||'')+'\n'+(status==='err'&&lastErr?'同步發生問題（'+lastErr+'），稍後會自動重試。':'資料會自動同步，只有這個帳號看得到。')+(t?'\n上次同步：'+new Date(t).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'');
+      btn.textContent='登出';btn.className='btn ghost';
+    }else{
+      note.textContent='登入後，電腦和手機的資料會自動同步，而且只有你自己看得到。';
+      btn.textContent='使用 Google 登入';btn.className='btn';
+    }
+  }
+  const setStatus=(s,e)=>{status=s;lastErr=e||'';if(s==='ok')jset('travel__last',Date.now());paint()};
+
+  async function pushAll(){
+    if(!uid||!navigator.onLine)return;
+    if(pushing){again=true;return}
+    pushing=true;setStatus('sync');
+    try{
+      for(const type of KEYS){
+        for(const it of Store.get(type)){
+          const key=type+'_'+it.id;if(it.u<=getSync(key))continue;
+          const ids=[];
+          for(const img of it.images||[]){
+            const h=hashStr(img);
+            if(!UP.has(h)){
+              if(img.length>950000){if(!bigWarned){bigWarned=true;alert('有一張照片太大，無法同步到雲端（仍會保留在這支裝置）。')}continue}
+              await Cloud.putPhoto(uid,h,img);UP.add(h);jset('travel__photos',[...UP]);
+            }
+            ids.push(h);
+          }
+          const {images,u,...rest}=it;
+          await Cloud.putItem(uid,key,{t:type,d:JSON.stringify(rest),ids,u:it.u,del:false});
+          setSync(key,it.u);
+        }
+      }
+      for(const [key,tb] of Object.entries(jget('travel__tomb',{}))){
+        if(tb.u<=getSync(key))continue;
+        await Cloud.putItem(uid,key,{t:tb.t,d:'',ids:[],u:tb.u,del:true});
+        setSync(key,tb.u);
+      }
+      setStatus('ok');
+    }catch(e){console.error(e);setStatus('err',e.code||e.message)}
+    finally{pushing=false;if(again){again=false;schedule()}}
+  }
+  function schedule(){if(!uid)return;clearTimeout(timer);timer=setTimeout(pushAll,700)}
+
+  async function applyChange(c){
+    if(c.type==='removed')return false;
+    const r=c.data,key=c.id,type=r.t;if(!KEYS.includes(type))return false;
+    const idn=key.slice(type.length+1);
+    let local=Store.get(type).find(x=>String(x.id)===idn);
+    if(r.del){
+      if(local&&local.u>r.u)return false;               // 本機比較新：以本機為準（稍後會上傳）
+      setTomb(key,type,Number(idn),r.u);setSync(key,r.u);
+      if(local){Store.raw(type,Store.get(type).filter(x=>String(x.id)!==idn));return true}
+      return false;
+    }
+    if(local&&local.u>=r.u){if(local.u===r.u)setSync(key,r.u);return false}
+    const tb=jget('travel__tomb',{})[key];
+    if(tb&&tb.u>=r.u)return false;                       // 本機較晚刪除過
+    const have={};(local?local.images||[]:[]).forEach(im=>have[hashStr(im)]=im);
+    const images=[];
+    for(const h of r.ids||[]){
+      let d=have[h]||await Cloud.getPhoto(uid,h);
+      if(!d)throw new Error('找不到雲端照片');
+      images.push(d);UP.add(h);
+    }
+    jset('travel__photos',[...UP]);
+    // 上面有等待網路，之後重新讀取最新的本機資料再寫入（中間不再等待）
+    const list=Store.get(type);local=list.find(x=>String(x.id)===idn);
+    if(local&&local.u>=r.u)return false;
+    const item=Object.assign(JSON.parse(r.d),{u:r.u});
+    if(PHOTO_TYPES.includes(type))item.images=images;
+    if(local)list[list.indexOf(local)]=item;else list.push(item);
+    list.sort((a,b)=>b.id-a.id);
+    Store.raw(type,list);setSync(key,r.u);
+    return true;
+  }
+  function onChanges(changes){
+    q=q.then(async()=>{
+      let changed=false;
+      for(const c of changes)if(await applyChange(c))changed=true;
+      if(changed){render();jset('travel__last',Date.now())}
+      if(first){first=false}
+      pushAll();
+    }).catch(e=>{console.error(e);setStatus('err',e.code||e.message);relisten(15000)});
+  }
+  function listen(){
+    stop();first=true;
+    try{unsub=Cloud.listen(uid,onChanges,e=>{console.error(e);setStatus('err',e.code||e.message);relisten(20000)})}
+    catch(e){console.error(e);setStatus('err',e.message)}
+  }
+  function stop(){if(unsub){try{unsub()}catch(e){}unsub=null}clearTimeout(retry)}
+  function relisten(ms){clearTimeout(retry);retry=setTimeout(()=>{if(uid)listen()},ms)}
+
+  function onUser(u){
+    if(!u){stop();uid=null;user=null;setStatus('out');return}
+    const prev=localStorage.getItem('travel__uid');
+    if(prev&&prev!==u.uid){
+      if(!confirm('這個瀏覽器目前存的是另一個帳號的資料。\n登入「'+(u.email||'這個帳號')+'」後，會換成這個帳號的雲端資料。\n（原本帳號的資料仍保留在它的雲端，之後登入還能取回。）\n\n要繼續嗎？')){Cloud.signOut();return}
+      Object.keys(localStorage).filter(k=>k.startsWith('travel_')).forEach(k=>localStorage.removeItem(k));
+      UP.clear();render();
+    }
+    localStorage.setItem('travel__uid',u.uid);
+    uid=u.uid;user=u;setStatus('sync');listen();
+  }
+  async function boot(){
+    if(!CLOUD_ON||booted)return;
+    if(!navigator.onLine){paint();return}
+    try{if(!window.__CLOUD)await Cloud.load();booted=true;Cloud.onAuth(onUser)}
+    catch(e){console.error(e);setStatus('err','無法連上雲端服務')}
+  }
+  return {
+    init(){paint();boot();
+      window.addEventListener('online',()=>{if(!booted)boot();else if(uid){listen();pushAll()}paint()});
+      window.addEventListener('offline',paint);
+      document.addEventListener('visibilitychange',()=>{if(!document.hidden&&uid)pushAll()});
+    },
+    dirty(){if(CLOUD_ON)schedule()},
+    signedIn:()=>!!uid,
+    async signIn(){if(!booted){await boot()}if(!booted)throw new Error('離線或無法連上雲端服務');return Cloud.signIn()},
+    signOut:()=>Cloud.signOut(),
+    async wipeCloud(){
+      const now=Date.now(),seen=new Set();
+      const put=(key,t)=>{seen.add(key);return Cloud.putItem(uid,key,{t,d:'',ids:[],u:now,del:true})};
+      for(const it of await Cloud.listItems(uid)){if(it.data&&!it.data.del)await put(it.id,it.data.t)}
+      for(const type of KEYS)for(const it of Store.get(type)){const k=type+'_'+it.id;if(!seen.has(k))await put(k,type)}
+      await Cloud.deletePhotos(uid);
+    }
+  };
+})();
+
+function cloudBtn(){
+  if(Sync.signedIn()){
+    if(confirm('要登出嗎？\n登出後這個瀏覽器上的資料還在，但不會再同步。'))Sync.signOut();
+    return;
+  }
+  if(/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent)){
+    alert('Google 不允許在 LINE、Facebook、Instagram 這類 App 內建的瀏覽器登入。\n請點右上角選單，選「用 Safari（或 Chrome）開啟」後再登入。');return;
+  }
+  Sync.signIn().catch(e=>{
+    const m={'auth/unauthorized-domain':'這個網址還沒加入 Firebase 的「授權網域」，請到 Firebase 控制台 → Authentication → 設定 → 授權網域，把目前網址加進去。',
+             'auth/network-request-failed':'網路連線失敗，請稍後再試。'}[e.code];
+    alert('登入失敗：'+(m||e.code||e.message));
+  });
+}
+
 // === 初始化 ===
 document.querySelectorAll('[data-ic]').forEach(e=>e.innerHTML=ic(e.dataset.ic));
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
@@ -673,6 +929,7 @@ $('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()
 ['ticket-photo','souvenir-photo','expense-photo'].forEach(pickerInit);
 try{localStorage.removeItem('travel_ocr_ok')}catch(e){}
 render();
+Sync.init();
 </script>
 </body>
 </html>
