@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B4F57">
+<title>旅行隨身筆記本</title>
+<style>
+:root{--bg:#EDF2F3;--paper:#fff;--ink:#14252C;--muted:#5D6F77;--line:#D5DFE2;--brand:#0E6A73;--on-brand:#fff;--soft:#E1EEF0;--head:#0B4F57;--accent:#E8A33D;--danger:#B3402F;--r:14px}
+@media (prefers-color-scheme:dark){:root{--bg:#0E1A1F;--paper:#16262D;--ink:#E7F0F2;--muted:#93A8AF;--line:#27404A;--brand:#5CC2CB;--on-brand:#08262A;--soft:#1D3A42;--head:#0A3A41;--danger:#E8806F}}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+svg{width:1.25em;height:1.25em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:34rem;margin:0 auto;padding:0 16px}
+[hidden]{display:none!important}
+
+header{background:var(--head);color:#fff;padding:calc(14px + env(safe-area-inset-top)) 0 20px;border-radius:0 0 26px 26px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+h1{font-size:1.3rem;font-weight:700;letter-spacing:.04em}
+.reset{font-size:.8rem;padding:6px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.35);color:#fff}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+.stat small{display:block;font-size:.78rem;opacity:.75}
+.stat b{font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
+.bar{height:6px;border-radius:9px;background:rgba(255,255,255,.22);margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:9px;transition:width .4s}
+
+main{padding-top:22px}
+h2{font-size:1.1rem;margin-bottom:14px}
+.add{display:flex;gap:8px;margin-bottom:18px}
+input[type=text],input[type=number]{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);min-height:48px}
+input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--soft)}
+.btn{background:var(--brand);color:var(--on-brand);font-weight:700;border-radius:12px;padding:0 20px;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.6}
+.panel{background:var(--paper);border-radius:var(--r);padding:16px;margin-bottom:20px;display:grid;gap:12px}
+.panel label.f{font-size:.85rem;font-weight:600;color:var(--muted);display:grid;gap:5px}
+.pick{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px dashed var(--brand);border-radius:12px;color:var(--brand);cursor:pointer;font-weight:600;background:var(--soft)}
+.pick:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+.pick span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick input{position:absolute;opacity:0;width:1px;height:1px}
+
+.sheet{background:var(--paper);border-radius:var(--r);padding:4px 16px}
+.row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .t{flex:1;min-width:0;overflow-wrap:anywhere;text-align:left}
+.row .t small{display:block;color:var(--muted);font-size:.8rem}
+.chk{width:28px;height:28px;border-radius:9px;border:2px solid var(--muted);display:grid;place-items:center;color:var(--on-brand)}
+.chk[aria-pressed=true]{background:var(--brand);border-color:var(--brand)}
+.chk svg{opacity:0;stroke-width:3}.chk[aria-pressed=true] svg{opacity:1}
+.done{text-decoration:line-through;color:var(--muted)}
+.del{color:var(--muted);padding:10px;margin:-10px;border-radius:10px}
+.del:hover{color:var(--danger)}
+.amt{font-weight:700;font-size:1.15rem;font-variant-numeric:tabular-nums;min-width:4.5rem}
+.thumb{width:52px;height:52px;border-radius:10px;object-fit:cover;cursor:zoom-in}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--paper);border-radius:var(--r);overflow:hidden}
+.card img,.ph{width:100%;aspect-ratio:1;object-fit:cover;display:block;cursor:zoom-in}
+.ph{display:grid;place-items:center;background:var(--soft);color:var(--brand);cursor:default}
+.ph svg{width:2.2em;height:2.2em}
+.cap{display:flex;justify-content:space-between;gap:6px;padding:10px 12px;align-items:flex-start}
+.cap b{overflow-wrap:anywhere;line-height:1.35}
+.cap small{display:block;color:var(--muted);font-size:.75rem}
+
+details.place{background:var(--paper);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+details.place summary{list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;font-weight:600}
+details.place summary::-webkit-details-marker{display:none}
+details.place summary b{flex:1;overflow-wrap:anywhere}
+details.place summary svg:first-child{color:var(--brand)}
+.chev{transition:transform .2s;color:var(--muted)}
+details[open] .chev{transform:rotate(180deg)}
+.pbody{padding:0 16px 16px}
+.pbody iframe{width:100%;height:240px;border:0;border-radius:10px;background:var(--soft)}
+.plinks{display:flex;justify-content:space-between;margin-top:10px;font-size:.9rem}
+.plinks a{color:var(--brand);font-weight:600;display:inline-flex;gap:6px;align-items:center}
+.plinks button{color:var(--danger);display:inline-flex;gap:6px;align-items:center}
+
+.empty{text-align:center;color:var(--muted);padding:36px 12px;border:1.5px dashed var(--line);border-radius:var(--r)}
+
+nav{position:fixed;inset:auto 0 0 0;background:var(--paper);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom));display:flex;z-index:5}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.72rem;color:var(--muted);padding:4px 0;min-height:52px}
+nav button i{display:grid;place-items:center;width:52px;height:30px;border-radius:99px;transition:background .2s}
+nav button[aria-current=page]{color:var(--brand);font-weight:700}
+nav button[aria-current=page] i{background:var(--soft)}
+
+.tk{background:var(--paper);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.tk.used{opacity:.6}
+.tk .head{display:flex;align-items:center;gap:10px;padding:12px 14px}
+.tk .head .t{flex:1;min-width:0;overflow-wrap:anywhere;font-weight:700;line-height:1.35}
+.tk .head small{display:block;color:var(--muted);font-weight:400;font-size:.8rem}
+.tk img{width:100%;max-height:260px;object-fit:contain;background:#fff;display:block;border-top:1px solid var(--line);cursor:zoom-in}
+.tk .note{padding:0 14px 12px;color:var(--muted);font-size:.9rem;overflow-wrap:anywhere}
+.use{font-size:.8rem;font-weight:600;padding:6px 12px;border-radius:99px;border:1.5px solid var(--brand);color:var(--brand);white-space:nowrap}
+.use[aria-pressed=true]{background:var(--brand);color:var(--on-brand)}
+input[type=date]{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);min-height:48px}
+dialog{border:0;padding:0;background:none;max-width:94vw;max-height:90vh}
+dialog::backdrop{background:rgba(0,0,0,.8)}
+dialog img{max-width:94vw;max-height:88vh;border-radius:12px;display:block}
+#dm,#cf{background:var(--paper);color:var(--ink);border-radius:18px;padding:20px;width:min(92vw,24rem);margin:auto}
+#dm::backdrop,#cf::backdrop{background:rgba(0,0,0,.6)}
+.hint{font-size:.85rem;color:var(--muted)}
+.hint:empty,.cands:empty{display:none}
+.cands{display:grid;gap:6px}
+.cand{text-align:left;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;width:100%;line-height:1.35}
+.cand small{display:block;color:var(--muted);font-size:.78rem}
+.cand[aria-pressed=true]{border-color:var(--brand);background:var(--soft)}
+.addr{color:var(--muted);font-size:.88rem;margin-bottom:10px;overflow-wrap:anywhere}
+.raw summary{cursor:pointer;font-size:.85rem;color:var(--muted)}
+.raw pre{white-space:pre-wrap;overflow-wrap:anywhere;font:.8rem/1.5 inherit;color:var(--muted);margin-top:8px;user-select:text}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cfl{display:grid;grid-template-columns:4rem 1fr;gap:8px 10px;margin-bottom:18px}
+.cfl dt{color:var(--muted);font-size:.9rem}.cfl dd{font-weight:600;overflow-wrap:anywhere}
+.cfl dd.none{color:var(--muted);font-weight:400}
+details.place summary small{display:block;color:var(--muted);font-weight:400;font-size:.8rem}
+.plinks .ed{color:var(--brand);display:inline-flex;gap:6px;align-items:center}
+.dnote{color:var(--muted);font-size:.9rem;margin-bottom:16px}
+.dact{display:grid;gap:10px}
+.btn.ghost{background:none;border:1.5px solid var(--line);color:var(--ink);cursor:pointer}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+@media print{
+:root{--bg:#fff;--paper:#fff;--ink:#000;--muted:#555;--line:#ccc;--brand:#0E6A73;--on-brand:#fff;--soft:#eee}
+*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{padding:0;background:#fff;font-size:12pt}
+header{background:#fff;color:#000;border-bottom:2px solid #000;border-radius:0;padding:0 0 10px}
+.wrap{max-width:none}
+.reset,nav,.add,.panel,.del,.use,.chev,.plinks button,.bar,dialog{display:none!important}
+main section[hidden]{display:block!important}
+main section{margin-bottom:20px}
+.sheet,.card,.tk,details.place{border:1px solid var(--line)}
+.row,.card,.tk,details.place{break-inside:avoid}
+.grid{grid-template-columns:repeat(3,1fr)}
+.tk.used{opacity:1}
+.tk.used .head .t::after{content:"（已使用）";font-weight:400}
+.empty{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <h1>旅行隨身筆記本</h1>
+      <button class="reset" onclick="$('dm').showModal()">資料管理</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><small>行李準備</small><b id="st-prog">0 / 0</b><div class="bar"><i id="st-bar"></i></div></div>
+      <div class="stat"><small>累計花費</small><b id="st-total">$0</b></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="view-checklist">
+    <h2>行李與準備清單</h2>
+    <div class="add"><input type="text" id="checklist-input" placeholder="例如：護照、充電線" aria-label="新增準備項目" enterkeyhint="done"><button class="btn" onclick="addItem()"><i data-ic="plus"></i>新增</button></div>
+    <div id="checklist-items"></div>
+  </section>
+
+  <section id="view-souvenirs" hidden>
+    <h2>伴手禮記錄</h2>
+    <div class="panel">
+      <label class="f">對象 / 物品名稱<input type="text" id="souvenir-name" placeholder="例如：給家人的鳳梨酥"></label>
+      <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（選填）</span><input type="file" id="souvenir-photo" accept="image/*"></label>
+      <button class="btn" onclick="addPhotoItem('souvenirs',this)">儲存伴手禮</button>
+    </div>
+    <div id="souvenirs-items"></div>
+  </section>
+
+  <section id="view-expenses" hidden>
+    <h2>每日記帳</h2>
+    <div class="panel">
+      <label class="f">花費金額<input type="number" id="expense-amount" inputmode="decimal" placeholder="輸入金額"></label>
+      <label class="f">項目說明<input type="text" id="expense-desc" placeholder="例如：晚餐拉麵"></label>
+      <label class="pick"><i data-ic="camera"></i><span>拍下收據（選填）</span><input type="file" id="expense-photo" accept="image/*"></label>
+      <button class="btn" onclick="addPhotoItem('expenses',this)">新增這筆花費</button>
+    </div>
+    <div id="expenses-items"></div>
+  </section>
+
+  <section id="view-tickets" hidden>
+    <h2>交通票券</h2>
+    <div class="panel">
+      <label class="pick"><i data-ic="camera"></i><span>拍下票券或 QR Code（選填）</span><input type="file" id="ticket-photo" accept="image/*"></label>
+      <p class="hint" id="ticket-hint">選好照片後，會自動辨識並帶入下方資料。</p>
+      <button type="button" class="btn ghost" onclick="ocrTicket()">重新辨識票券內容</button>
+      <details class="raw" id="ticket-rawbox" hidden><summary>查看辨識到的文字</summary><pre id="ticket-raw"></pre></details>
+      <label class="f">票券名稱<input type="text" id="ticket-name" placeholder="例如：東京地鐵 24 小時券"></label>
+      <label class="f">使用日期（選填）<input type="date" id="ticket-date"></label>
+      <label class="f">備註（選填）<input type="text" id="ticket-note" placeholder="例如：訂單編號、集合時間"></label>
+      <button class="btn" onclick="addTicket(this)">儲存票券</button>
+    </div>
+    <div id="tickets-items"></div>
+  </section>
+
+  <section id="view-spots" hidden>
+    <h2>必逛景點</h2>
+    <div class="panel">
+      <label class="f">景點名稱<input type="text" id="spots-input" placeholder="輸入名稱後，自動查詢所在地" enterkeyhint="search"></label>
+      <p class="hint" id="spots-hint"></p>
+      <div class="cands" id="spots-cands"></div>
+      <div class="two">
+        <label class="f">國家<input type="text" id="spots-country" list="countries" placeholder="自動帶入"></label>
+        <label class="f">區域<input type="text" id="spots-region" placeholder="自動帶入"></label>
+      </div>
+      <label class="f">地址<input type="text" id="spots-address" placeholder="自動帶入，可自行修改"></label>
+      <button class="btn" onclick="askPlace('spots')">確認資料</button>
+    </div>
+    <div id="spots-items"></div>
+  </section>
+
+  <section id="view-food" hidden>
+    <h2>美食餐廳</h2>
+    <div class="panel">
+      <label class="f">餐廳名稱<input type="text" id="food-input" placeholder="輸入名稱後，自動查詢所在地" enterkeyhint="search"></label>
+      <p class="hint" id="food-hint"></p>
+      <div class="cands" id="food-cands"></div>
+      <div class="two">
+        <label class="f">國家<input type="text" id="food-country" list="countries" placeholder="自動帶入"></label>
+        <label class="f">區域<input type="text" id="food-region" placeholder="自動帶入"></label>
+      </div>
+      <label class="f">地址<input type="text" id="food-address" placeholder="自動帶入，可自行修改"></label>
+      <button class="btn" onclick="askPlace('food')">確認資料</button>
+    </div>
+    <div id="food-items"></div>
+  </section>
+</main>
+
+<nav aria-label="主選單">
+  <button data-tab="checklist" aria-current="page"><i data-ic="list"></i>準備清單</button>
+  <button data-tab="souvenirs"><i data-ic="gift"></i>伴手禮</button>
+  <button data-tab="expenses"><i data-ic="wallet"></i>記帳</button>
+  <button data-tab="tickets"><i data-ic="ticket"></i>票券</button>
+  <button data-tab="spots"><i data-ic="pin"></i>景點</button>
+  <button data-tab="food"><i data-ic="utensils"></i>餐廳</button>
+</nav>
+
+<datalist id="countries"><option value="台灣"><option value="日本"><option value="韓國"><option value="泰國"><option value="越南"><option value="新加坡"><option value="馬來西亞"><option value="香港"><option value="中國"><option value="美國"><option value="英國"><option value="法國"><option value="義大利"><option value="德國"><option value="西班牙"><option value="澳洲"></datalist>
+
+<dialog id="cf">
+  <h2 id="cf-title">確認資料</h2>
+  <dl class="cfl"><dt>名稱</dt><dd id="cf-name"></dd><dt>國家</dt><dd id="cf-country"></dd><dt>區域</dt><dd id="cf-region"></dd><dt>地址</dt><dd id="cf-address"></dd></dl>
+  <div class="dact">
+    <button class="btn" onclick="savePlace()">確認新增</button>
+    <button class="btn ghost" onclick="$('cf').close()">返回修改</button>
+  </div>
+</dialog>
+
+<dialog id="dm">
+  <h2>資料管理</h2>
+  <p class="dnote">資料只存在這支手機的瀏覽器裡。換手機或清除瀏覽資料前，記得先下載備份。</p>
+  <div class="dact">
+    <button class="btn" onclick="exportData()">下載備份檔</button>
+    <label class="btn ghost">匯入備份檔<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0]);this.value=''"></label>
+    <button class="btn ghost" onclick="printAll()">列印 / 存成 PDF</button>
+    <button class="btn ghost danger" onclick="clearData()">清除所有資料</button>
+    <button class="btn ghost" onclick="$('dm').close()">關閉</button>
+  </div>
+</dialog>
+
+<dialog id="lb" onclick="this.close()"><img id="lb-img" alt="放大檢視"></dialog>
+
+<script>
+const ICONS={
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  camera:'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  list:'<path d="M9 6h11M9 12h11M9 18h11M4 6l1.2 1.2L7 5M4 12l1.2 1.2L7 11M4 18l1.2 1.2L7 17"/>',
+  gift:'<path d="M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7C10 3 7 4 8 6s4 1 4 1zM12 7c2-4 5-3 4-1s-4 1-4 1z"/>',
+  wallet:'<path d="M3 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 7l2-3h12v3M16 14h2"/>',
+  pin:'<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  utensils:'<path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 21V3c-3 2-4 5-4 8h4"/>',
+  ticket:'<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4zM14 7v10"/>',
+  down:'<path d="m6 9 6 6 6-6"/>',
+  out:'<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>'
+};
+const ic=n=>`<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+
+// === 儲存（LocalStorage，資料只留在這支手機）===
+const Store={
+  get:k=>{try{return JSON.parse(localStorage.getItem('travel_'+k)||'[]')}catch(e){return[]}},
+  set:(k,d)=>{try{localStorage.setItem('travel_'+k,JSON.stringify(d));return true}
+    catch(e){alert('儲存空間已滿，請刪除部分舊照片後再試。');return false}}
+};
+
+// 壓縮照片，避免塞滿 LocalStorage
+function compressImage(file,cb,maxW=600,q=.6){
+  const r=new FileReader();
+  r.onerror=()=>cb(null);
+  r.onload=e=>{
+    const img=new Image();
+    img.onerror=()=>cb(null);
+    img.onload=()=>{
+      const s=Math.min(1,maxW/img.width),c=document.createElement('canvas');
+      c.width=img.width*s;c.height=img.height*s;
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      cb(c.toDataURL('image/jpeg',q));
+    };
+    img.src=e.target.result;
+  };
+  r.readAsDataURL(file);
+}
+
+// === 分頁 ===
+function switchTab(id){
+  document.querySelectorAll('main section').forEach(s=>s.hidden=s.id!=='view-'+id);
+  document.querySelectorAll('nav button').forEach(b=>b.toggleAttribute('aria-current',b.dataset.tab===id));
+  document.querySelectorAll('nav button').forEach(b=>{if(b.dataset.tab===id)b.setAttribute('aria-current','page')});
+  window.scrollTo(0,0);
+}
+
+// === 清單 ===
+function addItem(){
+  const v=$('checklist-input').value.trim();
+  if(!v)return $('checklist-input').focus();
+  const d=Store.get('checklist');d.unshift({id:Date.now(),text:v,checked:false});
+  Store.set('checklist',d);$('checklist-input').value='';render();$('checklist-input').focus();
+}
+function toggleCheck(id){
+  const d=Store.get('checklist'),i=d.find(x=>x.id===id);
+  if(i)i.checked=!i.checked;Store.set('checklist',d);render();
+}
+function deleteItem(type,id){
+  if(!confirm('確定要刪除這個項目嗎？'))return;
+  Store.set(type,Store.get(type).filter(i=>i.id!==id));render();
+}
+
+// === 伴手禮 / 記帳 ===
+function addPhotoItem(type,btn){
+  const sv=type==='souvenirs',file=$(sv?'souvenir-photo':'expense-photo').files[0];
+  const text1=$(sv?'souvenir-name':'expense-amount').value.trim();
+  const text2=sv?'':$('expense-desc').value.trim();
+  if(!text1){alert(sv?'請輸入伴手禮名稱或對象':'請輸入花費金額');return}
+  const label=btn.textContent;btn.textContent='處理中…';btn.disabled=true;
+  const save=img=>{
+    const d=Store.get(type);
+    d.unshift({id:Date.now(),text1,text2,image:img,
+      date:new Date().toLocaleString('zh-TW',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})});
+    if(Store.set(type,d)){
+      $(sv?'souvenir-name':'expense-amount').value='';
+      if(!sv)$('expense-desc').value='';
+      const f=$(sv?'souvenir-photo':'expense-photo');f.value='';f.dispatchEvent(new Event('change'));
+    }
+    btn.textContent=label;btn.disabled=false;render();
+  };
+  file?compressImage(file,save):save(null);
+}
+
+// === 交通票券（照片解析度較高，QR Code 才掃得出來）===
+function addTicket(btn){
+  const text1=$('ticket-name').value.trim();
+  if(!text1){alert('請輸入票券名稱');return $('ticket-name').focus()}
+  const file=$('ticket-photo').files[0],label=btn.textContent;
+  btn.textContent='處理中…';btn.disabled=true;
+  const save=image=>{
+    const d=Store.get('tickets');
+    d.unshift({id:Date.now(),text1,date:$('ticket-date').value,note:$('ticket-note').value.trim(),image,used:false});
+    if(Store.set('tickets',d)){
+      ['ticket-name','ticket-date','ticket-note'].forEach(i=>{$(i).value='';delete $(i).dataset.auto});
+      $('ticket-hint').textContent='選好照片後，會自動辨識並帶入下方資料。';$('ticket-rawbox').hidden=true;
+      const f=$('ticket-photo');f.value='';f.dispatchEvent(new Event('change'));
+    }
+    btn.textContent=label;btn.disabled=false;render();
+  };
+  file?compressImage(file,save,1000,.8):save(null);
+}
+// === 票券辨識（瀏覽器內 OCR，第一次使用才會載入）===
+let tessP;
+const loadTess=()=>tessP||(tessP=new Promise((res,rej)=>{
+  if(window.Tesseract)return res();
+  const sc=document.createElement('script');
+  sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  sc.onload=res;sc.onerror=()=>{tessP=null;rej(new Error('load'))};
+  document.head.appendChild(sc);
+}));
+const TK_KW=/票|券|pass|ticket|乘車|切符|車票|一日|1日|24\s*h|metro|subway|train|bus|express|rail|新幹線|電車|地鐵|捷運|高鐵|巴士|渡輪|ferry/i;
+function parseTicket(raw){
+  const text=raw.replace(/([\u3000-\u9fff])[ \t]+(?=[\u3000-\u9fff])/g,'$1');
+  const lines=text.split(/\n+/).map(l=>l.trim()).filter(l=>l.length>1);
+  const pad=n=>String(n).padStart(2,'0');
+  const ok=(y,m,d)=>y>=2000&&y<=2100&&m>=1&&m<=12&&d>=1&&d<=31?`${y}-${pad(m)}-${pad(d)}`:'';
+  const MON=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'],M='(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?';
+  let date='',m=text.match(/(20\d{2})\s*[年\/.\-]\s*(\d{1,2})\s*[月\/.\-]\s*(\d{1,2})/);
+  if(m)date=ok(+m[1],+m[2],+m[3]);
+  if(!date&&(m=text.match(new RegExp('(\\d{1,2})\\s*'+M+',?\\s*(20\\d{2})','i'))))date=ok(+m[3],MON.indexOf(m[2].toLowerCase())+1,+m[1]);
+  if(!date&&(m=text.match(new RegExp(M+'\\s*(\\d{1,2}),?\\s*(20\\d{2})','i'))))date=ok(+m[3],MON.indexOf(m[1].toLowerCase())+1,+m[2]);
+  const good=l=>l.length>=3&&l.length<=40&&/[\u4e00-\u9fffA-Za-z\u3040-\u30ff]{3}/.test(l)&&!/^\d/.test(l);
+  const name=lines.find(l=>good(l)&&TK_KW.test(l))||lines.find(good)||'';
+  const notes=[];
+  const route=lines.find(l=>l!==name&&l.length<50&&/.{2,}(→|->|⇒|至|\sto\s).{2,}/i.test(l));
+  if(route)notes.push(route);
+  const ord=text.match(/(訂單|訂位|預約|訂票|取票|編號|番号|booking|order|confirmation|reservation|ref)(?:\s*(?:no\.?|number|#))?[^\nA-Z0-9]{0,8}([A-Z0-9][A-Z0-9-]{5,})/i);
+  if(ord)notes.push(ord[1]+' '+ord[2]);
+  const price=text.match(/(NT\$|NTD|JPY|HK\$|KRW|[¥￥₩$])\s?[\d,]{2,}|[\d,]{2,}\s?(日圓|元|円|圓)/i);
+  if(price)notes.push(price[0].trim());
+  const tm=text.match(/\b([01]?\d|2[0-3]):[0-5]\d\b/);
+  if(tm)notes.push('時間 '+tm[0]);
+  return{name,date,note:notes.join('；').slice(0,120)};
+}
+async function ocrTicket(){
+  const f=$('ticket-photo').files[0],hint=$('ticket-hint');
+  if(!f){hint.textContent='請先拍照或選擇票券照片。';return}
+  if(!localStorage.getItem('travel_ocr_ok')&&!confirm('第一次辨識需要下載文字辨識資料（約 10 至 20 MB），建議連上 Wi-Fi。要現在辨識嗎？')){
+    hint.textContent='已略過辨識，可按「重新辨識票券內容」再試。';return;
+  }
+  hint.textContent='準備辨識…';
+  try{
+    await loadTess();
+    const src=await new Promise(r=>compressImage(f,r,1600,.9));
+    if(!src)throw new Error('img');
+    const {data}=await Tesseract.recognize(src,'chi_tra+eng',{logger:m=>{
+      hint.textContent=m.status==='recognizing text'?'辨識中 '+Math.round(m.progress*100)+'%':'下載辨識資料中…';}});
+    localStorage.setItem('travel_ocr_ok','1');
+    const r=parseTicket(data.text);let n=0;
+    [['ticket-name',r.name],['ticket-date',r.date],['ticket-note',r.note]].forEach(([id,v])=>{
+      const el=$(id);
+      if(v&&(!el.value||el.value===el.dataset.auto)){el.value=v;el.dataset.auto=v;n++}
+    });
+    $('ticket-raw').textContent=data.text.trim();$('ticket-rawbox').hidden=!data.text.trim();
+    hint.textContent=n?`已帶入 ${n} 項資料，請確認內容是否正確。`:'沒有辨識出可用的資料，請手動填寫。';
+  }catch(e){hint.textContent='無法辨識（可能沒有網路或照片不清楚），請手動填寫。'}
+}
+function toggleUsed(id){
+  const d=Store.get('tickets'),i=d.find(x=>x.id===id);
+  if(i)i.used=!i.used;Store.set('tickets',d);render();
+}
+
+// === 景點 / 餐廳 ===
+let pending=null;
+const lastLoc=()=>{try{return JSON.parse(localStorage.getItem('travel_lastloc')||'{}')}catch(e){return{}}};
+const loc=i=>[i.country,i.region].filter(Boolean).join('，');
+const placeQ=i=>[i.name,i.region,i.country].filter(Boolean).join(' ');
+// === 輸入名稱後，自動查詢國家、區域、地址（OpenStreetMap Nominatim）===
+const looked={},busy={},cands={};
+function toPlace(r){
+  const a=r.address||{},parts=(r.display_name||'').split(/,\s*/);
+  const city=a.city||a.town||a.village||a.county||'',sub=a.suburb||a.city_district||a.quarter||a.neighbourhood||'';
+  const state=/[臺台]灣省/.test(a.state||'')?'':(a.state||'');
+  return{
+    name:r.name||parts[0],
+    country:a.country||'',
+    region:[...new Set([state,city,sub].filter(Boolean))].join(' '),
+    address:parts.slice(1,-1).join('，')
+  };
+}
+function applyCand(t,i){
+  const c=cands[t][i];if(!c)return;
+  $(t+'-country').value=c.country;$(t+'-region').value=c.region;$(t+'-address').value=c.address;
+  $(t+'-hint').textContent='已自動帶入：'+[c.country,c.region].filter(Boolean).join('，')+(cands[t].length>1?'。不是這裡？請點選下方更換。':'。');
+  $(t+'-cands').innerHTML=cands[t].length>1?cands[t].map((x,k)=>`<button type="button" class="cand" aria-pressed="${k===i}" onclick="applyCand('${t}',${k})">${esc(x.name)}<small>${esc([x.country,x.region].filter(Boolean).join('，')||'未提供地區')}</small></button>`).join(''):'';
+}
+async function lookup(t){
+  const q=$(t+'-input').value.trim();
+  if(q.length<2||looked[t]===q)return;
+  looked[t]=q;
+  $(t+'-hint').textContent='查詢所在地中…';$(t+'-cands').innerHTML='';
+  try{
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&accept-language=zh-TW&q='+encodeURIComponent(q));
+    if(!r.ok)throw new Error(r.status);
+    const j=await r.json();
+    if($(t+'-input').value.trim()!==q)return;
+    cands[t]=j.map(toPlace);
+    if(!cands[t].length){$(t+'-hint').textContent='找不到這個地點。可以加上城市或地區再試一次，或直接手動填寫。';return}
+    applyCand(t,0);
+  }catch(e){$(t+'-hint').textContent='目前無法自動查詢（可能沒有網路），請手動填寫國家與區域。'}
+}
+const startLookup=t=>(busy[t]=lookup(t));
+
+async function askPlace(type){
+  const name=$(type+'-input').value.trim();
+  if(!name){$(type+'-input').focus();return}
+  await startLookup(type);
+  pending={type,name,country:$(type+'-country').value.trim(),region:$(type+'-region').value.trim(),address:$(type+'-address').value.trim()};
+  $('cf-title').textContent='確認'+(type==='spots'?'景點':'餐廳')+'資料';
+  $('cf-name').textContent=name;
+  ['country','region','address'].forEach(k=>{
+    const el=$('cf-'+k);el.textContent=pending[k]||'未填寫';el.className=pending[k]?'':'none';
+  });
+  $('cf').showModal();
+}
+function savePlace(){
+  if(!pending)return;
+  const {type,name,country,region,address}=pending,d=Store.get(type);
+  d.unshift({id:Date.now(),name,country,region,address});
+  if(Store.set(type,d)){
+    localStorage.setItem('travel_lastloc',JSON.stringify({country,region}));
+    $(type+'-input').value='';$(type+'-address').value='';
+    $(type+'-hint').textContent='';$(type+'-cands').innerHTML='';looked[type]='';
+  }
+  pending=null;$('cf').close();render();$(type+'-input').focus();
+}
+function editPlace(type,id){
+  const d=Store.get(type),i=d.find(x=>x.id===id);if(!i)return;
+  const v=prompt('國家，區域（用逗號分隔）',loc(i));
+  if(v===null)return;
+  const [c='',r='']=v.split(/[,，]/).map(x=>x.trim());
+  i.country=c;i.region=r;Store.set(type,d);render();
+}
+function loadMap(el){
+  const box=el.querySelector('.map');
+  if(el.open&&!box.firstChild){
+    box.innerHTML=`<iframe loading="lazy" title="${esc(el.dataset.name)} 地圖" src="https://www.google.com/maps?q=${encodeURIComponent(el.dataset.q)}&output=embed" allowfullscreen></iframe>`;
+  }
+}
+function zoom(src){$('lb-img').src=src;$('lb').showModal()}
+
+// === 畫面 ===
+const empty=t=>`<div class="empty">${t}</div>`;
+const delBtn=(type,id)=>`<button class="del" aria-label="刪除" onclick="deleteItem('${type}',${id})">${ic('trash')}</button>`;
+
+function render(){
+  const cl=Store.get('checklist'),done=cl.filter(i=>i.checked).length;
+  $('checklist-items').innerHTML=cl.length?`<div class="sheet">${cl.map(i=>`
+    <div class="row">
+      <button class="chk" aria-pressed="${i.checked}" aria-label="標記完成" onclick="toggleCheck(${i.id})">${ic('check')}</button>
+      <span class="t ${i.checked?'done':''}">${esc(i.text)}</span>${delBtn('checklist',i.id)}
+    </div>`).join('')}</div>`:empty('還沒有項目，先把護照和充電線加進來吧。');
+  $('st-prog').textContent=`${done} / ${cl.length}`;
+  $('st-bar').style.width=(cl.length?done/cl.length*100:0)+'%';
+
+  const sv=Store.get('souvenirs');
+  $('souvenirs-items').innerHTML=sv.length?`<div class="grid">${sv.map(i=>`
+    <div class="card">
+      ${i.image?`<img src="${i.image}" alt="${esc(i.text1)}" onclick="zoom(this.src)">`:`<div class="ph">${ic('gift')}</div>`}
+      <div class="cap"><div><b>${esc(i.text1)}</b><small>${esc(i.date)}</small></div>${delBtn('souvenirs',i.id)}</div>
+    </div>`).join('')}</div>`:empty('記下要買給誰、買了什麼，還能附上照片。');
+
+  const ex=Store.get('expenses'),total=ex.reduce((s,i)=>s+(Number(i.text1)||0),0);
+  $('st-total').textContent='$'+total.toLocaleString();
+  $('expenses-items').innerHTML=ex.length?`<div class="sheet">${ex.map(i=>`
+    <div class="row">
+      <span class="amt">$${esc(Number(i.text1).toLocaleString())}</span>
+      <span class="t">${esc(i.text2||'未填說明')}<small>${esc(i.date)}</small></span>
+      ${i.image?`<img class="thumb" src="${i.image}" alt="收據" onclick="zoom(this.src)">`:''}${delBtn('expenses',i.id)}
+    </div>`).join('')}</div>`:empty('每花一筆就記一筆，累計金額會顯示在最上方。');
+
+  const tk=Store.get('tickets');
+  $('tickets-items').innerHTML=tk.length?tk.map(i=>`
+    <div class="tk ${i.used?'used':''}">
+      <div class="head">
+        <span class="t">${esc(i.text1)}${i.date?`<small>${esc(i.date)}</small>`:''}</span>
+        <button class="use" aria-pressed="${!!i.used}" onclick="toggleUsed(${i.id})">${i.used?'已使用':'標記已用'}</button>${delBtn('tickets',i.id)}
+      </div>
+      ${i.note?`<div class="note">${esc(i.note)}</div>`:''}
+      ${i.image?`<img src="${i.image}" alt="${esc(i.text1)} 票券" onclick="zoom(this.src)">`:''}
+    </div>`).join(''):empty('把車票、通行證或 QR Code 拍下來，搭車時直接翻出來用。');
+
+  [['spots','pin','景點'],['food','utensils','餐廳']].forEach(([type,icon,name])=>{
+    const items=Store.get(type);
+    $(type+'-items').innerHTML=items.length?items.map(i=>`
+      <details class="place" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
+        <summary>${ic(icon)}<b>${esc(i.name)}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
+        <div class="pbody">${i.address?`<p class="addr">${esc(i.address)}</p>`:''}<div class="map"></div>
+          <div class="plinks">
+            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}用 Google 地圖開啟</a>
+            <button class="ed" onclick="editPlace('${type}',${i.id})">編輯地區</button>
+            <button onclick="deleteItem('${type}',${i.id})">${ic('trash')}刪除</button>
+          </div>
+        </div>
+      </details>`).join(''):empty(`填入${name}名稱和所在地區，就能直接在這裡看地圖。`);
+  });
+}
+
+// === 備份 / 匯入 / 列印 ===
+const KEYS=['checklist','souvenirs','expenses','tickets','spots','food'];
+function exportData(){
+  const data={};KEYS.forEach(k=>data[k]=Store.get(k));
+  const blob=new Blob([JSON.stringify({app:'TravelNotebook',version:1,exported:new Date().toISOString(),data})],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='travel-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+function importData(file){
+  if(!file)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const j=JSON.parse(r.result),src=j.data||j;
+      if(!KEYS.some(k=>Array.isArray(src[k])))throw new Error('format');
+      if(!confirm('要把備份檔合併到目前的資料嗎？相同項目不會重複。'))return;
+      let n=0;
+      KEYS.forEach(k=>{
+        if(!Array.isArray(src[k]))return;
+        const cur=Store.get(k),ids=new Set(cur.map(i=>i.id));
+        const add=src[k].filter(i=>i&&i.id!=null&&!ids.has(i.id));
+        n+=add.length;
+        if(add.length)Store.set(k,cur.concat(add).sort((a,b)=>b.id-a.id));
+      });
+      render();$('dm').close();alert('已匯入 '+n+' 筆資料');
+    }catch(e){alert('無法讀取這個檔案，請選擇從本頁下載的備份檔（.json）。')}
+  };
+  r.readAsText(file);
+}
+function printAll(){$('dm').close();setTimeout(()=>window.print(),150)}
+
+function clearData(){
+  if(!confirm('確定要清除所有旅行資料嗎？清除後無法復原。'))return;
+  Object.keys(localStorage).filter(k=>k.startsWith('travel_')).forEach(k=>localStorage.removeItem(k));
+  render();$('dm').close();
+}
+
+// === 初始化 ===
+document.querySelectorAll('[data-ic]').forEach(e=>e.innerHTML=ic(e.dataset.ic));
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+$('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()});
+['spots','food'].forEach(t=>{
+  const l=lastLoc();$(t+'-country').value=l.country||'';$(t+'-region').value=l.region||'';
+  $(t+'-input').addEventListener('change',()=>startLookup(t));
+  $(t+'-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$(t+'-input').blur();startLookup(t)}});
+  ['country','region','address'].forEach(k=>$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
+});
+[['ticket-photo','拍下票券或 QR Code（選填）'],['souvenir-photo','拍照或選擇照片（選填）'],['expense-photo','拍下收據（選填）']].forEach(([id,def])=>{
+  $(id).addEventListener('change',function(){
+    this.parentElement.querySelector('span').textContent=this.files[0]?'已選擇：'+this.files[0].name:def;
+  });
+});
+$('ticket-photo').addEventListener('change',function(){if(this.files[0])ocrTicket()});
+render();
+</script>
+</body>
+</html>
