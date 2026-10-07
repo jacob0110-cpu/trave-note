@@ -109,12 +109,11 @@ dialog img{max-width:94vw;max-height:88vh;border-radius:12px;display:block}
 .cand small{display:block;color:var(--muted);font-size:.78rem}
 .cand[aria-pressed=true]{border-color:var(--brand);background:var(--soft)}
 .addr{color:var(--muted);font-size:.88rem;margin-bottom:10px;overflow-wrap:anywhere}
-.raw summary{cursor:pointer;font-size:.85rem;color:var(--muted)}
-.raw pre{white-space:pre-wrap;overflow-wrap:anywhere;font:.8rem/1.5 inherit;color:var(--muted);margin-top:8px;user-select:text}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .cfl{display:grid;grid-template-columns:4rem 1fr;gap:8px 10px;margin-bottom:18px}
 .cfl dt{color:var(--muted);font-size:.9rem}.cfl dd{font-weight:600;overflow-wrap:anywhere}
 .cfl dd.none{color:var(--muted);font-weight:400}
+details.place summary .pn{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:8px}
 details.place summary small{display:block;color:var(--muted);font-weight:400;font-size:.8rem}
 .plinks .ed{color:var(--brand);display:inline-flex;gap:6px;align-items:center}
 .dnote{color:var(--muted);font-size:.9rem;margin-bottom:16px}
@@ -186,9 +185,6 @@ main section{margin-bottom:20px}
     <h2>交通票券</h2>
     <div class="panel">
       <label class="pick"><i data-ic="camera"></i><span>拍下票券或 QR Code（選填）</span><input type="file" id="ticket-photo" accept="image/*"></label>
-      <p class="hint" id="ticket-hint">選好照片後，會自動辨識並帶入下方資料。</p>
-      <button type="button" class="btn ghost" onclick="ocrTicket()">重新辨識票券內容</button>
-      <details class="raw" id="ticket-rawbox" hidden><summary>查看辨識到的文字</summary><pre id="ticket-raw"></pre></details>
       <label class="f">票券名稱<input type="text" id="ticket-name" placeholder="例如：東京地鐵 24 小時券"></label>
       <label class="f">使用日期（選填）<input type="date" id="ticket-date"></label>
       <label class="f">備註（選填）<input type="text" id="ticket-note" placeholder="例如：訂單編號、集合時間"></label>
@@ -208,6 +204,7 @@ main section{margin-bottom:20px}
         <label class="f">區域<input type="text" id="spots-region" placeholder="自動帶入"></label>
       </div>
       <label class="f">地址<input type="text" id="spots-address" placeholder="自動帶入，可自行修改"></label>
+      <label class="f">備註（選填）<input type="text" id="spots-note" placeholder="例如：需預約、週一休館、建議早上去"></label>
       <button class="btn" onclick="askPlace('spots')">確認資料</button>
     </div>
     <div id="spots-items"></div>
@@ -243,7 +240,7 @@ main section{margin-bottom:20px}
 
 <dialog id="cf">
   <h2 id="cf-title">確認資料</h2>
-  <dl class="cfl"><dt>名稱</dt><dd id="cf-name"></dd><dt>國家</dt><dd id="cf-country"></dd><dt>區域</dt><dd id="cf-region"></dd><dt>地址</dt><dd id="cf-address"></dd></dl>
+  <dl class="cfl"><dt>名稱</dt><dd id="cf-name"></dd><dt>國家</dt><dd id="cf-country"></dd><dt>區域</dt><dd id="cf-region"></dd><dt>地址</dt><dd id="cf-address"></dd><dt id="cf-note-t">備註</dt><dd id="cf-note"></dd></dl>
   <div class="dact">
     <button class="btn" onclick="savePlace()">確認新增</button>
     <button class="btn ghost" onclick="$('cf').close()">返回修改</button>
@@ -363,69 +360,12 @@ function addTicket(btn){
     const d=Store.get('tickets');
     d.unshift({id:Date.now(),text1,date:$('ticket-date').value,note:$('ticket-note').value.trim(),image,used:false});
     if(Store.set('tickets',d)){
-      ['ticket-name','ticket-date','ticket-note'].forEach(i=>{$(i).value='';delete $(i).dataset.auto});
-      $('ticket-hint').textContent='選好照片後，會自動辨識並帶入下方資料。';$('ticket-rawbox').hidden=true;
+      ['ticket-name','ticket-date','ticket-note'].forEach(i=>{$(i).value=''});
       const f=$('ticket-photo');f.value='';f.dispatchEvent(new Event('change'));
     }
     btn.textContent=label;btn.disabled=false;render();
   };
   file?compressImage(file,save,1000,.8):save(null);
-}
-// === 票券辨識（瀏覽器內 OCR，第一次使用才會載入）===
-let tessP;
-const loadTess=()=>tessP||(tessP=new Promise((res,rej)=>{
-  if(window.Tesseract)return res();
-  const sc=document.createElement('script');
-  sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
-  sc.onload=res;sc.onerror=()=>{tessP=null;rej(new Error('load'))};
-  document.head.appendChild(sc);
-}));
-const TK_KW=/票|券|pass|ticket|乘車|切符|車票|一日|1日|24\s*h|metro|subway|train|bus|express|rail|新幹線|電車|地鐵|捷運|高鐵|巴士|渡輪|ferry/i;
-function parseTicket(raw){
-  const text=raw.replace(/([\u3000-\u9fff])[ \t]+(?=[\u3000-\u9fff])/g,'$1');
-  const lines=text.split(/\n+/).map(l=>l.trim()).filter(l=>l.length>1);
-  const pad=n=>String(n).padStart(2,'0');
-  const ok=(y,m,d)=>y>=2000&&y<=2100&&m>=1&&m<=12&&d>=1&&d<=31?`${y}-${pad(m)}-${pad(d)}`:'';
-  const MON=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'],M='(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?';
-  let date='',m=text.match(/(20\d{2})\s*[年\/.\-]\s*(\d{1,2})\s*[月\/.\-]\s*(\d{1,2})/);
-  if(m)date=ok(+m[1],+m[2],+m[3]);
-  if(!date&&(m=text.match(new RegExp('(\\d{1,2})\\s*'+M+',?\\s*(20\\d{2})','i'))))date=ok(+m[3],MON.indexOf(m[2].toLowerCase())+1,+m[1]);
-  if(!date&&(m=text.match(new RegExp(M+'\\s*(\\d{1,2}),?\\s*(20\\d{2})','i'))))date=ok(+m[3],MON.indexOf(m[1].toLowerCase())+1,+m[2]);
-  const good=l=>l.length>=3&&l.length<=40&&/[\u4e00-\u9fffA-Za-z\u3040-\u30ff]{3}/.test(l)&&!/^\d/.test(l);
-  const name=lines.find(l=>good(l)&&TK_KW.test(l))||lines.find(good)||'';
-  const notes=[];
-  const route=lines.find(l=>l!==name&&l.length<50&&/.{2,}(→|->|⇒|至|\sto\s).{2,}/i.test(l));
-  if(route)notes.push(route);
-  const ord=text.match(/(訂單|訂位|預約|訂票|取票|編號|番号|booking|order|confirmation|reservation|ref)(?:\s*(?:no\.?|number|#))?[^\nA-Z0-9]{0,8}([A-Z0-9][A-Z0-9-]{5,})/i);
-  if(ord)notes.push(ord[1]+' '+ord[2]);
-  const price=text.match(/(NT\$|NTD|JPY|HK\$|KRW|[¥￥₩$])\s?[\d,]{2,}|[\d,]{2,}\s?(日圓|元|円|圓)/i);
-  if(price)notes.push(price[0].trim());
-  const tm=text.match(/\b([01]?\d|2[0-3]):[0-5]\d\b/);
-  if(tm)notes.push('時間 '+tm[0]);
-  return{name,date,note:notes.join('；').slice(0,120)};
-}
-async function ocrTicket(){
-  const f=$('ticket-photo').files[0],hint=$('ticket-hint');
-  if(!f){hint.textContent='請先拍照或選擇票券照片。';return}
-  if(!localStorage.getItem('travel_ocr_ok')&&!confirm('第一次辨識需要下載文字辨識資料（約 10 至 20 MB），建議連上 Wi-Fi。要現在辨識嗎？')){
-    hint.textContent='已略過辨識，可按「重新辨識票券內容」再試。';return;
-  }
-  hint.textContent='準備辨識…';
-  try{
-    await loadTess();
-    const src=await new Promise(r=>compressImage(f,r,1600,.9));
-    if(!src)throw new Error('img');
-    const {data}=await Tesseract.recognize(src,'chi_tra+eng',{logger:m=>{
-      hint.textContent=m.status==='recognizing text'?'辨識中 '+Math.round(m.progress*100)+'%':'下載辨識資料中…';}});
-    localStorage.setItem('travel_ocr_ok','1');
-    const r=parseTicket(data.text);let n=0;
-    [['ticket-name',r.name],['ticket-date',r.date],['ticket-note',r.note]].forEach(([id,v])=>{
-      const el=$(id);
-      if(v&&(!el.value||el.value===el.dataset.auto)){el.value=v;el.dataset.auto=v;n++}
-    });
-    $('ticket-raw').textContent=data.text.trim();$('ticket-rawbox').hidden=!data.text.trim();
-    hint.textContent=n?`已帶入 ${n} 項資料，請確認內容是否正確。`:'沒有辨識出可用的資料，請手動填寫。';
-  }catch(e){hint.textContent='無法辨識（可能沒有網路或照片不清楚），請手動填寫。'}
 }
 function toggleUsed(id){
   const d=Store.get('tickets'),i=d.find(x=>x.id===id);
@@ -477,21 +417,23 @@ async function askPlace(type){
   const name=$(type+'-input').value.trim();
   if(!name){$(type+'-input').focus();return}
   await startLookup(type);
-  pending={type,name,country:$(type+'-country').value.trim(),region:$(type+'-region').value.trim(),address:$(type+'-address').value.trim()};
+  const noteEl=$(type+'-note');
+  pending={type,name,country:$(type+'-country').value.trim(),region:$(type+'-region').value.trim(),address:$(type+'-address').value.trim(),note:noteEl?noteEl.value.trim():''};
   $('cf-title').textContent='確認'+(type==='spots'?'景點':'餐廳')+'資料';
   $('cf-name').textContent=name;
-  ['country','region','address'].forEach(k=>{
+  ['country','region','address','note'].forEach(k=>{
     const el=$('cf-'+k);el.textContent=pending[k]||'未填寫';el.className=pending[k]?'':'none';
   });
+  const hasNote=!!noteEl;$('cf-note-t').hidden=!hasNote;$('cf-note').hidden=!hasNote;
   $('cf').showModal();
 }
 function savePlace(){
   if(!pending)return;
-  const {type,name,country,region,address}=pending,d=Store.get(type);
-  d.unshift({id:Date.now(),name,country,region,address});
+  const {type,name,country,region,address,note}=pending,d=Store.get(type);
+  d.unshift({id:Date.now(),name,country,region,address,note});
   if(Store.set(type,d)){
     localStorage.setItem('travel_lastloc',JSON.stringify({country,region}));
-    $(type+'-input').value='';$(type+'-address').value='';
+    $(type+'-input').value='';$(type+'-address').value='';if($(type+'-note'))$(type+'-note').value='';
     $(type+'-hint').textContent='';$(type+'-cands').innerHTML='';looked[type]='';
   }
   pending=null;$('cf').close();render();$(type+'-input').focus();
@@ -502,6 +444,12 @@ function editPlace(type,id){
   if(v===null)return;
   const [c='',r='']=v.split(/[,，]/).map(x=>x.trim());
   i.country=c;i.region=r;Store.set(type,d);render();
+}
+function editNote(type,id){
+  const d=Store.get(type),i=d.find(x=>x.id===id);if(!i)return;
+  const v=prompt('備註（留空可清除）',i.note||'');
+  if(v===null)return;
+  i.note=v.trim();Store.set(type,d);render();
 }
 function loadMap(el){
   const box=el.querySelector('.map');
@@ -556,11 +504,12 @@ function render(){
     const items=Store.get(type);
     $(type+'-items').innerHTML=items.length?items.map(i=>`
       <details class="place" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
-        <summary>${ic(icon)}<b>${esc(i.name)}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
+        <summary>${ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(i.note)}</span>`:''}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
         <div class="pbody">${i.address?`<p class="addr">${esc(i.address)}</p>`:''}<div class="map"></div>
           <div class="plinks">
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}用 Google 地圖開啟</a>
             <button class="ed" onclick="editPlace('${type}',${i.id})">編輯地區</button>
+            ${type==='spots'?`<button class="ed" onclick="editNote('${type}',${i.id})">編輯備註</button>`:''}
             <button onclick="deleteItem('${type}',${i.id})">${ic('trash')}刪除</button>
           </div>
         </div>
@@ -604,8 +553,22 @@ function printAll(){$('dm').close();setTimeout(()=>window.print(),150)}
 
 function clearData(){
   if(!confirm('確定要清除所有旅行資料嗎？清除後無法復原。'))return;
-  Object.keys(localStorage).filter(k=>k.startsWith('travel_')).forEach(k=>localStorage.removeItem(k));
-  render();$('dm').close();
+  // 1. 清掉所有儲存（含用完即丟的暫存鍵）
+  [localStorage,sessionStorage].forEach(st=>{
+    try{Object.keys(st).filter(k=>k.startsWith('travel_')).forEach(k=>st.removeItem(k))}catch(e){}
+  });
+  // 2. 清掉畫面上殘留的暫存、查詢結果與表單內容
+  pending=null;
+  [looked,busy,cands].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
+  document.querySelectorAll('main input').forEach(el=>{
+    if(el.type==='file'){el.value='';el.dispatchEvent(new Event('change'))}
+    else el.value='';
+  });
+  ['spots','food'].forEach(t=>{$(t+'-hint').textContent='';$(t+'-cands').innerHTML=''});
+  document.querySelectorAll('details.place[open]').forEach(d=>d.open=false);
+  if($('cf').open)$('cf').close();
+  if($('lb').open)$('lb').close();
+  render();$('dm').close();switchTab('checklist');
 }
 
 // === 初始化 ===
@@ -616,14 +579,14 @@ $('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()
   const l=lastLoc();$(t+'-country').value=l.country||'';$(t+'-region').value=l.region||'';
   $(t+'-input').addEventListener('change',()=>startLookup(t));
   $(t+'-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$(t+'-input').blur();startLookup(t)}});
-  ['country','region','address'].forEach(k=>$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
+  ['country','region','address','note'].forEach(k=>$(t+'-'+k)&&$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
 });
 [['ticket-photo','拍下票券或 QR Code（選填）'],['souvenir-photo','拍照或選擇照片（選填）'],['expense-photo','拍下收據（選填）']].forEach(([id,def])=>{
   $(id).addEventListener('change',function(){
     this.parentElement.querySelector('span').textContent=this.files[0]?'已選擇：'+this.files[0].name:def;
   });
 });
-$('ticket-photo').addEventListener('change',function(){if(this.files[0])ocrTicket()});
+try{localStorage.removeItem('travel_ocr_ok')}catch(e){}
 render();
 </script>
 </body>
