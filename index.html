@@ -54,6 +54,22 @@ input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--so
 .done{text-decoration:line-through;color:var(--muted)}
 .del{color:var(--muted);padding:10px;margin:-10px;border-radius:10px}
 .del:hover{color:var(--danger)}
+.ed-b{color:var(--muted);padding:10px;margin:-10px;border-radius:10px}
+.ed-b:hover{color:var(--brand)}
+.ed-b svg,.del svg{width:22px;height:22px}
+.acts{display:flex;align-items:center;gap:22px;margin-left:6px}
+#ed{overflow:auto;max-height:90vh}
+#ed .panel{padding:0;margin-bottom:16px}
+#ed .rm{display:flex;align-items:center;gap:8px;font-size:.9rem;color:var(--muted)}
+#ed .rm input{width:20px;height:20px}
+.pv{display:flex;flex-wrap:wrap;gap:10px}
+.pv:empty{display:none}
+.pvi{position:relative;width:68px;height:68px}
+.pvi img{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block}
+.pvi button{position:absolute;top:-9px;right:-9px;width:28px;height:28px;border-radius:50%;background:var(--danger);color:#fff;font-size:18px;line-height:1;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.ths{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.card .strip{display:flex;gap:6px;padding:6px 6px 0;overflow-x:auto}
+.card .strip img{width:44px;height:44px;aspect-ratio:auto;border-radius:8px;flex:none}
 .amt{font-weight:700;font-size:1.15rem;font-variant-numeric:tabular-nums;min-width:4.5rem}
 .thumb{width:52px;height:52px;border-radius:10px;object-fit:cover;cursor:zoom-in}
 
@@ -100,8 +116,8 @@ input[type=date]{width:100%;padding:12px 14px;border:1.5px solid var(--line);bor
 dialog{border:0;padding:0;background:none;max-width:94vw;max-height:90vh}
 dialog::backdrop{background:rgba(0,0,0,.8)}
 dialog img{max-width:94vw;max-height:88vh;border-radius:12px;display:block}
-#dm,#cf{background:var(--paper);color:var(--ink);border-radius:18px;padding:20px;width:min(92vw,24rem);margin:auto}
-#dm::backdrop,#cf::backdrop{background:rgba(0,0,0,.6)}
+#dm,#cf,#ed{background:var(--paper);color:var(--ink);border-radius:18px;padding:20px;width:min(92vw,24rem);margin:auto}
+#dm::backdrop,#cf::backdrop,#ed::backdrop{background:rgba(0,0,0,.6)}
 .hint{font-size:.85rem;color:var(--muted)}
 .hint:empty,.cands:empty{display:none}
 .cands{display:grid;gap:6px}
@@ -126,7 +142,7 @@ details.place summary small{display:block;color:var(--muted);font-weight:400;fon
 body{padding:0;background:#fff;font-size:12pt}
 header{background:#fff;color:#000;border-bottom:2px solid #000;border-radius:0;padding:0 0 10px}
 .wrap{max-width:none}
-.reset,nav,.add,.panel,.del,.use,.chev,.plinks button,.bar,dialog{display:none!important}
+.reset,nav,.add,.panel,.del,.ed-b,.pv,.use,.chev,.plinks button,.bar,dialog{display:none!important}
 main section[hidden]{display:block!important}
 main section{margin-bottom:20px}
 .sheet,.card,.tk,details.place{border:1px solid var(--line)}
@@ -164,7 +180,8 @@ main section{margin-bottom:20px}
     <h2>伴手禮記錄</h2>
     <div class="panel">
       <label class="f">對象 / 物品名稱<input type="text" id="souvenir-name" placeholder="例如：給家人的鳳梨酥"></label>
-      <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（選填）</span><input type="file" id="souvenir-photo" accept="image/*"></label>
+      <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（可多張，選填）</span><input type="file" id="souvenir-photo" accept="image/*" multiple></label>
+      <div class="pv" id="souvenir-photo-pv"></div>
       <button class="btn" onclick="addPhotoItem('souvenirs',this)">儲存伴手禮</button>
     </div>
     <div id="souvenirs-items"></div>
@@ -175,7 +192,8 @@ main section{margin-bottom:20px}
     <div class="panel">
       <label class="f">花費金額<input type="number" id="expense-amount" inputmode="decimal" placeholder="輸入金額"></label>
       <label class="f">項目說明<input type="text" id="expense-desc" placeholder="例如：晚餐拉麵"></label>
-      <label class="pick"><i data-ic="camera"></i><span>拍下收據（選填）</span><input type="file" id="expense-photo" accept="image/*"></label>
+      <label class="pick"><i data-ic="camera"></i><span>拍下收據（可多張，選填）</span><input type="file" id="expense-photo" accept="image/*" multiple></label>
+      <div class="pv" id="expense-photo-pv"></div>
       <button class="btn" onclick="addPhotoItem('expenses',this)">新增這筆花費</button>
     </div>
     <div id="expenses-items"></div>
@@ -184,7 +202,8 @@ main section{margin-bottom:20px}
   <section id="view-tickets" hidden>
     <h2>交通票券</h2>
     <div class="panel">
-      <label class="pick"><i data-ic="camera"></i><span>拍下票券或 QR Code（選填）</span><input type="file" id="ticket-photo" accept="image/*"></label>
+      <label class="pick"><i data-ic="camera"></i><span>拍下票券或 QR Code（可多張，選填）</span><input type="file" id="ticket-photo" accept="image/*" multiple></label>
+      <div class="pv" id="ticket-photo-pv"></div>
       <label class="f">票券名稱<input type="text" id="ticket-name" placeholder="例如：東京地鐵 24 小時券"></label>
       <label class="f">使用日期（選填）<input type="date" id="ticket-date"></label>
       <label class="f">備註（選填）<input type="text" id="ticket-note" placeholder="例如：訂單編號、集合時間"></label>
@@ -259,6 +278,15 @@ main section{margin-bottom:20px}
   </div>
 </dialog>
 
+<dialog id="ed">
+  <h2 id="ed-title">編輯</h2>
+  <div class="panel" id="ed-body"></div>
+  <div class="dact">
+    <button class="btn" id="ed-save" onclick="saveEdit()">儲存修改</button>
+    <button class="btn ghost" onclick="$('ed').close()">取消</button>
+  </div>
+</dialog>
+
 <dialog id="lb" onclick="this.close()"><img id="lb-img" alt="放大檢視"></dialog>
 
 <script>
@@ -273,6 +301,7 @@ const ICONS={
   pin:'<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   utensils:'<path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 21V3c-3 2-4 5-4 8h4"/>',
   ticket:'<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4zM14 7v10"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
   down:'<path d="m6 9 6 6 6-6"/>',
   out:'<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>'
 };
@@ -281,8 +310,10 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const $=id=>document.getElementById(id);
 
 // === 儲存（LocalStorage，資料只留在這支手機）===
+// 舊資料只有單張照片（image），讀取時自動轉成多張（images）
+const norm=i=>{if(i&&typeof i==='object'&&!Array.isArray(i.images)&&'image' in i){i.images=i.image?[i.image]:[];delete i.image}return i};
 const Store={
-  get:k=>{try{return JSON.parse(localStorage.getItem('travel_'+k)||'[]')}catch(e){return[]}},
+  get:k=>{try{return JSON.parse(localStorage.getItem('travel_'+k)||'[]').map(norm)}catch(e){return[]}},
   set:(k,d)=>{try{localStorage.setItem('travel_'+k,JSON.stringify(d));return true}
     catch(e){alert('儲存空間已滿，請刪除部分舊照片後再試。');return false}}
 };
@@ -303,6 +334,29 @@ function compressImage(file,cb,maxW=600,q=.6){
     img.src=e.target.result;
   };
   r.readAsDataURL(file);
+}
+
+// === 照片選取器：可一次選多張，也可分次拍照加入 ===
+const PICK={},PURL={},PDEF={};
+function pickerRefresh(id){
+  if(!$(id))return;
+  (PURL[id]||[]).forEach(u=>URL.revokeObjectURL(u));
+  const files=PICK[id]||[];
+  PURL[id]=files.map(f=>URL.createObjectURL(f));
+  $(id).parentElement.querySelector('span').textContent=files.length?`已選 ${files.length} 張（可繼續加入）`:PDEF[id];
+  $(id+'-pv').innerHTML=PURL[id].map((u,n)=>`<span class="pvi"><img src="${u}" alt="已選照片 ${n+1}"><button type="button" aria-label="移除這張照片" onclick="pickerDel('${id}',${n})">×</button></span>`).join('');
+}
+function pickerDel(id,n){(PICK[id]||[]).splice(n,1);pickerRefresh(id)}
+function pickerClear(id){PICK[id]=[];pickerRefresh(id)}
+function pickerInit(id){
+  PDEF[id]=$(id).parentElement.querySelector('span').textContent;PICK[id]=[];
+  $(id).addEventListener('change',function(){PICK[id]=(PICK[id]||[]).concat([...this.files]);this.value='';pickerRefresh(id)});
+}
+// 依序壓縮多張照片，回傳 dataURL 陣列
+function compressMany(files,maxW,q){
+  let bad=0;
+  return files.reduce((p,f)=>p.then(arr=>new Promise(r=>compressImage(f,img=>{img?arr.push(img):bad++;r(arr)},maxW,q))),Promise.resolve([]))
+    .then(arr=>{if(bad)alert(bad+' 張照片無法讀取，已略過。');return arr});
 }
 
 // === 分頁 ===
@@ -331,41 +385,41 @@ function deleteItem(type,id){
 
 // === 伴手禮 / 記帳 ===
 function addPhotoItem(type,btn){
-  const sv=type==='souvenirs',file=$(sv?'souvenir-photo':'expense-photo').files[0];
+  const sv=type==='souvenirs',pid=sv?'souvenir-photo':'expense-photo',files=(PICK[pid]||[]).slice();
   const text1=$(sv?'souvenir-name':'expense-amount').value.trim();
   const text2=sv?'':$('expense-desc').value.trim();
   if(!text1){alert(sv?'請輸入伴手禮名稱或對象':'請輸入花費金額');return}
   const label=btn.textContent;btn.textContent='處理中…';btn.disabled=true;
-  const save=img=>{
+  const save=images=>{
     const d=Store.get(type);
-    d.unshift({id:Date.now(),text1,text2,image:img,
+    d.unshift({id:Date.now(),text1,text2,images,
       date:new Date().toLocaleString('zh-TW',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})});
     if(Store.set(type,d)){
       $(sv?'souvenir-name':'expense-amount').value='';
       if(!sv)$('expense-desc').value='';
-      const f=$(sv?'souvenir-photo':'expense-photo');f.value='';f.dispatchEvent(new Event('change'));
+      pickerClear(pid);
     }
     btn.textContent=label;btn.disabled=false;render();
   };
-  file?compressImage(file,save):save(null);
+  files.length?compressMany(files,600,.6).then(save):save([]);
 }
 
 // === 交通票券（照片解析度較高，QR Code 才掃得出來）===
 function addTicket(btn){
   const text1=$('ticket-name').value.trim();
   if(!text1){alert('請輸入票券名稱');return $('ticket-name').focus()}
-  const file=$('ticket-photo').files[0],label=btn.textContent;
+  const files=(PICK['ticket-photo']||[]).slice(),label=btn.textContent;
   btn.textContent='處理中…';btn.disabled=true;
-  const save=image=>{
+  const save=images=>{
     const d=Store.get('tickets');
-    d.unshift({id:Date.now(),text1,date:$('ticket-date').value,note:$('ticket-note').value.trim(),image,used:false});
+    d.unshift({id:Date.now(),text1,date:$('ticket-date').value,note:$('ticket-note').value.trim(),images,used:false});
     if(Store.set('tickets',d)){
       ['ticket-name','ticket-date','ticket-note'].forEach(i=>{$(i).value=''});
-      const f=$('ticket-photo');f.value='';f.dispatchEvent(new Event('change'));
+      pickerClear('ticket-photo');
     }
     btn.textContent=label;btn.disabled=false;render();
   };
-  file?compressImage(file,save,1000,.8):save(null);
+  files.length?compressMany(files,1000,.8).then(save):save([]);
 }
 function toggleUsed(id){
   const d=Store.get('tickets'),i=d.find(x=>x.id===id);
@@ -438,18 +492,50 @@ function savePlace(){
   }
   pending=null;$('cf').close();render();$(type+'-input').focus();
 }
-function editPlace(type,id){
-  const d=Store.get(type),i=d.find(x=>x.id===id);if(!i)return;
-  const v=prompt('國家，區域（用逗號分隔）',loc(i));
-  if(v===null)return;
-  const [c='',r='']=v.split(/[,，]/).map(x=>x.trim());
-  i.country=c;i.region=r;Store.set(type,d);render();
+// === 編輯已儲存的項目（所有分頁共用）===
+const EDIT={
+  checklist:{title:'編輯準備項目',f:[['text','項目名稱','text']]},
+  souvenirs:{title:'編輯伴手禮',f:[['text1','對象 / 物品名稱','text']],photo:[600,.6]},
+  expenses:{title:'編輯花費',f:[['text1','花費金額','number'],['text2','項目說明','text']],photo:[600,.6]},
+  tickets:{title:'編輯票券',f:[['text1','票券名稱','text'],['date','使用日期（選填）','date'],['note','備註（選填）','text']],photo:[1000,.8]},
+  spots:{title:'編輯景點',f:[['name','景點名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','text']]},
+  food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text']]}
+};
+let editing=null,editImgs=[];
+function edCur(){
+  $('ed-curh').textContent=editImgs.length?`目前的照片（${editImgs.length} 張，點 × 可移除）`:'';
+  $('ed-cur').innerHTML=editImgs.map((src,n)=>`<span class="pvi"><img src="${src}" alt="目前的照片 ${n+1}"><button type="button" aria-label="移除這張照片" onclick="edImgDel(${n})">×</button></span>`).join('');
 }
-function editNote(type,id){
-  const d=Store.get(type),i=d.find(x=>x.id===id);if(!i)return;
-  const v=prompt('備註（留空可清除）',i.note||'');
-  if(v===null)return;
-  i.note=v.trim();Store.set(type,d);render();
+function edImgDel(n){editImgs.splice(n,1);edCur()}
+function editItem(type,id){
+  const i=Store.get(type).find(x=>x.id===id),cfg=EDIT[type];if(!i)return;
+  editing={type,id};
+  $('ed-title').textContent=cfg.title;
+  $('ed-body').innerHTML=cfg.f.map(([k,label,t],n)=>`<label class="f">${label}<input type="${t}" data-k="${k}" ${t==='number'?'inputmode="decimal"':''} ${k==='country'?'list="countries"':''} value="${esc(i[k])}"></label>`).join('')
+    +(cfg.photo?`<p class="hint" id="ed-curh"></p><div class="pv" id="ed-cur"></div>
+      <label class="pick"><i data-ic="camera"></i><span>加入照片（可多張，選填）</span><input type="file" id="ed-photo" accept="image/*" multiple></label><div class="pv" id="ed-photo-pv"></div>`:'');
+  $('ed-body').querySelectorAll('[data-ic]').forEach(e=>e.innerHTML=ic(e.dataset.ic));
+  editImgs=(i.images||[]).slice();
+  if(cfg.photo){pickerInit('ed-photo');edCur()}
+  $('ed-body').querySelectorAll('input[type=text],input[type=number],input[type=date]').forEach(el=>el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();saveEdit()}});
+  $('ed').showModal();
+}
+function saveEdit(){
+  if(!editing)return;
+  const {type,id}=editing,cfg=EDIT[type],d=Store.get(type),i=d.find(x=>x.id===id);
+  if(!i){$('ed').close();return}
+  const v={};$('ed-body').querySelectorAll('[data-k]').forEach(el=>v[el.dataset.k]=el.value.trim());
+  const first=cfg.f[0][0];
+  if(!v[first]){alert('「'+cfg.f[0][1]+'」不能空白');return $('ed-body').querySelector('[data-k]').focus()}
+  const btn=$('ed-save'),label=btn.textContent,files=cfg.photo?(PICK['ed-photo']||[]).slice():[];
+  const done=added=>{
+    Object.assign(i,v);
+    if(cfg.photo)i.images=editImgs.concat(added);
+    if(Store.set(type,d)){editing=null;$('ed').close();render()}
+    btn.textContent=label;btn.disabled=false;
+  };
+  if(files.length){btn.textContent='處理中…';btn.disabled=true;compressMany(files,cfg.photo[0],cfg.photo[1]).then(done)}
+  else done([]);
 }
 function loadMap(el){
   const box=el.querySelector('.map');
@@ -461,6 +547,8 @@ function zoom(src){$('lb-img').src=src;$('lb').showModal()}
 
 // === 畫面 ===
 const empty=t=>`<div class="empty">${t}</div>`;
+const editBtn=(type,id)=>`<button class="ed-b" aria-label="編輯" onclick="editItem('${type}',${id})">${ic('edit')}</button>`;
+const acts=(type,id,pre='')=>`<span class="acts">${pre}${editBtn(type,id)}${delBtn(type,id)}</span>`;
 const delBtn=(type,id)=>`<button class="del" aria-label="刪除" onclick="deleteItem('${type}',${id})">${ic('trash')}</button>`;
 
 function render(){
@@ -468,7 +556,7 @@ function render(){
   $('checklist-items').innerHTML=cl.length?`<div class="sheet">${cl.map(i=>`
     <div class="row">
       <button class="chk" aria-pressed="${i.checked}" aria-label="標記完成" onclick="toggleCheck(${i.id})">${ic('check')}</button>
-      <span class="t ${i.checked?'done':''}">${esc(i.text)}</span>${delBtn('checklist',i.id)}
+      <span class="t ${i.checked?'done':''}">${esc(i.text)}</span>${acts('checklist',i.id)}
     </div>`).join('')}</div>`:empty('還沒有項目，先把護照和充電線加進來吧。');
   $('st-prog').textContent=`${done} / ${cl.length}`;
   $('st-bar').style.width=(cl.length?done/cl.length*100:0)+'%';
@@ -476,8 +564,9 @@ function render(){
   const sv=Store.get('souvenirs');
   $('souvenirs-items').innerHTML=sv.length?`<div class="grid">${sv.map(i=>`
     <div class="card">
-      ${i.image?`<img src="${i.image}" alt="${esc(i.text1)}" onclick="zoom(this.src)">`:`<div class="ph">${ic('gift')}</div>`}
-      <div class="cap"><div><b>${esc(i.text1)}</b><small>${esc(i.date)}</small></div>${delBtn('souvenirs',i.id)}</div>
+      ${(i.images||[]).length?`<img src="${i.images[0]}" alt="${esc(i.text1)}" onclick="zoom(this.src)">`:`<div class="ph">${ic('gift')}</div>`}
+      ${(i.images||[]).length>1?`<div class="strip">${i.images.slice(1).map(x=>`<img src="${x}" alt="${esc(i.text1)}" onclick="zoom(this.src)">`).join('')}</div>`:''}
+      <div class="cap"><div><b>${esc(i.text1)}</b><small>${esc(i.date)}</small></div>${acts('souvenirs',i.id)}</div>
     </div>`).join('')}</div>`:empty('記下要買給誰、買了什麼，還能附上照片。');
 
   const ex=Store.get('expenses'),total=ex.reduce((s,i)=>s+(Number(i.text1)||0),0);
@@ -485,8 +574,8 @@ function render(){
   $('expenses-items').innerHTML=ex.length?`<div class="sheet">${ex.map(i=>`
     <div class="row">
       <span class="amt">$${esc(Number(i.text1).toLocaleString())}</span>
-      <span class="t">${esc(i.text2||'未填說明')}<small>${esc(i.date)}</small></span>
-      ${i.image?`<img class="thumb" src="${i.image}" alt="收據" onclick="zoom(this.src)">`:''}${delBtn('expenses',i.id)}
+      <span class="t">${esc(i.text2||'未填說明')}<small>${esc(i.date)}</small>${(i.images||[]).length?`<span class="ths">${i.images.map(x=>`<img class="thumb" src="${x}" alt="收據" onclick="zoom(this.src)">`).join('')}</span>`:''}</span>
+      ${acts('expenses',i.id)}
     </div>`).join('')}</div>`:empty('每花一筆就記一筆，累計金額會顯示在最上方。');
 
   const tk=Store.get('tickets');
@@ -494,10 +583,10 @@ function render(){
     <div class="tk ${i.used?'used':''}">
       <div class="head">
         <span class="t">${esc(i.text1)}${i.date?`<small>${esc(i.date)}</small>`:''}</span>
-        <button class="use" aria-pressed="${!!i.used}" onclick="toggleUsed(${i.id})">${i.used?'已使用':'標記已用'}</button>${delBtn('tickets',i.id)}
+        ${acts('tickets',i.id,`<button class="use" aria-pressed="${!!i.used}" onclick="toggleUsed(${i.id})">${i.used?'已使用':'標記已用'}</button>`)}
       </div>
       ${i.note?`<div class="note">${esc(i.note)}</div>`:''}
-      ${i.image?`<img src="${i.image}" alt="${esc(i.text1)} 票券" onclick="zoom(this.src)">`:''}
+      ${(i.images||[]).map(x=>`<img src="${x}" alt="${esc(i.text1)} 票券" onclick="zoom(this.src)">`).join('')}
     </div>`).join(''):empty('把車票、通行證或 QR Code 拍下來，搭車時直接翻出來用。');
 
   [['spots','pin','景點'],['food','utensils','餐廳']].forEach(([type,icon,name])=>{
@@ -508,8 +597,7 @@ function render(){
         <div class="pbody">${i.address?`<p class="addr">${esc(i.address)}</p>`:''}<div class="map"></div>
           <div class="plinks">
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}用 Google 地圖開啟</a>
-            <button class="ed" onclick="editPlace('${type}',${i.id})">編輯地區</button>
-            ${type==='spots'?`<button class="ed" onclick="editNote('${type}',${i.id})">編輯備註</button>`:''}
+            <button class="ed" onclick="editItem('${type}',${i.id})">${ic('edit')}編輯</button>
             <button onclick="deleteItem('${type}',${i.id})">${ic('trash')}刪除</button>
           </div>
         </div>
@@ -561,13 +649,14 @@ function clearData(){
   pending=null;
   [looked,busy,cands].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
   document.querySelectorAll('main input').forEach(el=>{
-    if(el.type==='file'){el.value='';el.dispatchEvent(new Event('change'))}
-    else el.value='';
+    if(el.type==='file')el.value='';else el.value='';
   });
+  Object.keys(PICK).forEach(pickerClear);
   ['spots','food'].forEach(t=>{$(t+'-hint').textContent='';$(t+'-cands').innerHTML=''});
   document.querySelectorAll('details.place[open]').forEach(d=>d.open=false);
   if($('cf').open)$('cf').close();
   if($('lb').open)$('lb').close();
+  editing=null;if($('ed').open)$('ed').close();
   render();$('dm').close();switchTab('checklist');
 }
 
@@ -581,11 +670,7 @@ $('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()
   $(t+'-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$(t+'-input').blur();startLookup(t)}});
   ['country','region','address','note'].forEach(k=>$(t+'-'+k)&&$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
 });
-[['ticket-photo','拍下票券或 QR Code（選填）'],['souvenir-photo','拍照或選擇照片（選填）'],['expense-photo','拍下收據（選填）']].forEach(([id,def])=>{
-  $(id).addEventListener('change',function(){
-    this.parentElement.querySelector('span').textContent=this.files[0]?'已選擇：'+this.files[0].name:def;
-  });
-});
+['ticket-photo','souvenir-photo','expense-photo'].forEach(pickerInit);
 try{localStorage.removeItem('travel_ocr_ok')}catch(e){}
 render();
 </script>
