@@ -398,10 +398,78 @@ const norm=i=>{
   return i;
 };
 const sig=x=>JSON.stringify(Object.assign({},x,{u:0}));
+// --- IndexedDB 底層 ---
+const MEM={},STORE_KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes'];
+let IDB=null,idbChain=Promise.resolve(),idbWarned=false;
+function idbOpen(){
+  return new Promise(res=>{
+    try{
+      if(!window.indexedDB)return res(null);
+      const rq=indexedDB.open('travel-notebook',1);
+      rq.onupgradeneeded=()=>{if(!rq.result.objectStoreNames.contains('kv'))rq.result.createObjectStore('kv')};
+      rq.onsuccess=()=>res(rq.result);
+      rq.onerror=rq.onblocked=()=>res(null);
+      setTimeout(()=>res(null),5000);
+    }catch(e){res(null)}
+  });
+}
+function idbTx(mode,fn){
+  return new Promise((res,rej)=>{
+    const tx=IDB.transaction('kv',mode);let rq;
+    tx.oncomplete=()=>res(rq&&rq.result);
+    tx.onerror=tx.onabort=()=>rej(tx.error||new Error('idb'));
+    rq=fn(tx.objectStore('kv'));
+  });
+}
+// 寫入排隊進行，且永遠寫「當下最新」的內容，連續修改不會重複寫舊的大資料
+function persistKey(k){
+  idbChain=idbChain.then(()=>{if(MEM[k]==null)return;return idbTx('readwrite',st=>st.put(MEM[k],k))}).catch(e=>{
+    console.error('IndexedDB 寫入失敗',e);
+    if(!idbWarned){idbWarned=true;alert('資料寫入手機儲存空間失敗，請釋出一些手機空間後再試。')}
+  });
+}
+async function storeInit(){
+  IDB=await idbOpen();
+  if(!IDB)return;                                  // 不支援（如部分無痕模式）→ 退回 LocalStorage
+  try{
+    for(const k of STORE_KEYS){
+      const v=await idbTx('readonly',st=>st.get(k));
+      if(typeof v==='string')MEM[k]=v;
+      // 把舊版存在 LocalStorage 的資料搬進 IndexedDB，成功後刪掉舊的，釋放空間
+      const ls=localStorage.getItem('travel_'+k);
+      if(ls!=null){
+        if(MEM[k]==null){
+          await idbTx('readwrite',st=>st.put(ls,k));
+          MEM[k]=ls;
+        }
+        try{localStorage.removeItem('travel_'+k)}catch(e){}
+      }
+    }
+    try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+  }catch(e){
+    console.error('IndexedDB 讀取失敗，改用 LocalStorage',e);
+    IDB=null;
+  }
+}
 const Store={
-  get:k=>{try{return JSON.parse(localStorage.getItem('travel_'+k)||'[]').map(norm)}catch(e){return[]}},
+  // 資料存在 IndexedDB（容量遠大於 LocalStorage 的 5 MB），執行時放在記憶體 MEM 裡同步讀取
+  ready:null,
+  get:k=>{try{return JSON.parse((IDB?MEM[k]:localStorage.getItem('travel_'+k))||'[]').map(norm)}catch(e){return[]}},
   // 寫入但不標記為「本機修改」（套用雲端資料時用）
-  raw:(k,d)=>{try{localStorage.setItem('travel_'+k,JSON.stringify(d));return true}catch(e){return false}},
+  raw:(k,d)=>{
+    try{
+      const s=JSON.stringify(d);
+      if(IDB){MEM[k]=s;persistKey(k);return true}
+      localStorage.setItem('travel_'+k,s);return true;
+    }catch(e){return false}
+  },
+  size:()=>Object.values(MEM).reduce((n,v)=>n+(v||'').length,0),
+  clearAll:()=>{
+    Object.keys(MEM).forEach(k=>delete MEM[k]);
+    if(!IDB)return Promise.resolve();
+    idbChain=idbChain.then(()=>idbTx('readwrite',st=>st.clear())).catch(e=>console.error(e));
+    return idbChain;
+  },
   // 一般寫入：有變動的項目更新版本時間，被刪掉的項目記下刪除時間（同步用）
   set:(k,d)=>{
     const now=Date.now(),old=new Map(Store.get(k).map(x=>[String(x.id),x])),seen=new Set(),tomb=jget('travel__tomb',{});
@@ -412,7 +480,9 @@ const Store={
   }
 };
 
-// 壓縮照片，避免塞滿 LocalStorage
+Store.ready=storeInit();
+
+// 壓縮照片
 function compressImage(file,cb,maxW=600,q=.6){
   const r=new FileReader();
   r.onerror=()=>cb(null);
@@ -918,6 +988,7 @@ async function clearData(){
   [localStorage,sessionStorage].forEach(st=>{
     try{Object.keys(st).filter(k=>k.startsWith('travel_')).forEach(k=>st.removeItem(k))}catch(e){}
   });
+  await Store.clearAll();
   if(cloud&&uid)localStorage.setItem('travel__uid',uid);
   // 2. 清掉畫面上殘留的暫存、查詢結果與表單內容
   pending=null;
@@ -995,7 +1066,7 @@ const Sync=(()=>{
   const CHUNK=500000;                      // 文件切段大小（字元），遠低於 Firestore 單筆 1MB 上限
   // 網路請求加上逾時：卡住的上傳不會一直霸佔、擋住後面的同步
   const T=(p,ms)=>{ms=ms||window.__TMO||90000;let id;return Promise.race([p,new Promise((_,no)=>{id=setTimeout(()=>no(Object.assign(new Error('逾時'),{code:'timeout'})),ms)})]).finally(()=>clearTimeout(id))};
-  const ERRS={'permission-denied':'沒有權限寫入雲端，請確認 Firestore 規則已貼上並按「發布」','unavailable':'網路不穩或暫時連不上','timeout':'上傳逾時（網路太慢）','resource-exhausted':'超過 Firebase 免費額度（今日讀寫次數或儲存量）','invalid-argument':'資料格式或大小不符（可能單筆太大）','unauthenticated':'登入已失效，請重新登入','failed-precondition':'Firestore 資料庫尚未建立或設定不完整','not-found':'找不到 Firestore 資料庫，請確認已建立','quota':'這支裝置的瀏覽器儲存空間已滿（上限約 5 MB），放不下這筆含照片或文件的資料','missing-photo':'雲端找不到這筆資料的照片或文件，請在原本存放它的那台裝置按「修復：重新上傳照片與文件」'};
+  const ERRS={'permission-denied':'沒有權限寫入雲端，請確認 Firestore 規則已貼上並按「發布」','unavailable':'網路不穩或暫時連不上','timeout':'上傳逾時（網路太慢）','resource-exhausted':'超過 Firebase 免費額度（今日讀寫次數或儲存量）','invalid-argument':'資料格式或大小不符（可能單筆太大）','unauthenticated':'登入已失效，請重新登入','failed-precondition':'Firestore 資料庫尚未建立或設定不完整','not-found':'找不到 Firestore 資料庫，請確認已建立','quota':'這支裝置的儲存空間已滿，放不下這筆含照片或文件的資料（請釋出手機空間，或刪除部分舊照片）','missing-photo':'雲端找不到這筆資料的照片或文件，請在原本存放它的那台裝置按「修復：重新上傳照片與文件」'};
   const errText=c=>ERRS[c]||c||'未知錯誤';
   // 每個項目各自記錄「已上傳到雲端的照片／文件段」。（舊版用全域記錄：清除所有資料後再傳同一張照片會被誤判成已上傳）
   const getPh=k=>jget('travel__ph',{})[k]||[];
@@ -1156,6 +1227,7 @@ const Sync=(()=>{
     if(prev&&prev!==u.uid){
       if(!confirm('這個瀏覽器目前存的是另一個帳號的資料。\n登入「'+(u.email||'這個帳號')+'」後，會換成這個帳號的雲端資料。\n（原本帳號的資料仍保留在它的雲端，之後登入還能取回。）\n\n要繼續嗎？')){Cloud.signOut();return}
       Object.keys(localStorage).filter(k=>k.startsWith('travel_')).forEach(k=>localStorage.removeItem(k));
+      Store.clearAll();
       render();
     }
     localStorage.setItem('travel__uid',u.uid);
@@ -1196,8 +1268,8 @@ const Sync=(()=>{
       for(const type of KEYS)for(const it of Store.get(type)){
         if(it.u>getSync(type+'_'+it.id))un.push(type+'：照片 '+(it.images||[]).length+'、文件 '+(it.files||[]).length+'、約 '+Math.round(JSON.stringify(it).length/1024)+' KB');
       }
-      const used=Object.keys(localStorage).filter(k=>k.startsWith('travel_')).reduce((n,k)=>n+(localStorage.getItem(k)||'').length,0);
-      const txt=JSON.stringify({狀態:status,錯誤:errText(lastErr),錯誤代碼:lastErr,已登入:!!uid,網路:navigator.onLine,本機已用字元:used+'（上限約 5,000,000）',尚未同步的項目:un,最近錯誤:LOG},null,1);
+      const used=Store.size()+Object.keys(localStorage).filter(k=>k.startsWith('travel_')).reduce((n,k)=>n+(localStorage.getItem(k)||'').length,0);
+      const txt=JSON.stringify({狀態:status,錯誤:errText(lastErr),錯誤代碼:lastErr,已登入:!!uid,網路:navigator.onLine,儲存方式:IDB?'IndexedDB':'LocalStorage（舊式，上限約 5 MB）',本機已用字元:used,尚未同步的項目:un,最近錯誤:LOG},null,1);
       (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>alert('已複製診斷資訊，請貼給我。')).catch(()=>prompt('請全選並複製這段文字：',txt));
     },
     signedIn:()=>!!uid,
@@ -1243,8 +1315,7 @@ tzOptions($('note-tz'),jget('travel__tz',DEV_TZ));
 setInterval(checkAlarms,15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAlarms()});
 try{localStorage.removeItem('travel_ocr_ok')}catch(e){}
-render();
-Sync.init();
+Store.ready.catch(()=>{}).then(()=>{render();Sync.init()});
 </script>
 </body>
 </html>
