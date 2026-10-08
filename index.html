@@ -48,7 +48,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);b
 .add .btn{white-space:nowrap;flex:none}
 .btn:disabled{opacity:.6}
 .panel{background:var(--paper);border-radius:var(--r);padding:16px;margin-bottom:20px;display:grid;gap:12px}
-.panel .f{font-size:.85rem;font-weight:600;color:var(--muted);display:grid;gap:5px}
+.panel label.f{font-size:.85rem;font-weight:600;color:var(--muted);display:grid;gap:5px}
 .pick{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px dashed var(--brand);border-radius:12px;color:var(--brand);cursor:pointer;font-weight:600;background:var(--soft)}
 .pick:focus-within{outline:3px solid var(--accent);outline-offset:2px}
 .pick span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -78,9 +78,6 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);b
 .pvi{position:relative;width:68px;height:68px}
 .pvi img{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block}
 .pvi button{position:absolute;top:-9px;right:-9px;width:28px;height:28px;border-radius:50%;background:var(--danger);color:#fff;font-size:18px;line-height:1;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.tzcur{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);min-height:48px;font-weight:400;color:var(--ink)}
-.tzcur b{font-weight:600;overflow-wrap:anywhere}
-.tzcur button{color:var(--brand);font-weight:700;font-size:.9rem;padding:6px 4px;flex:none}
 .tzh{font-size:.8rem;color:var(--brand);font-weight:600;min-height:1.2em}
 .fchip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 4px 4px 12px;border:1px solid var(--line);border-radius:10px;font-size:.85rem;overflow-wrap:anywhere;background:var(--paper)}
 .fchip button{width:30px;height:30px;color:var(--danger);font-size:18px;flex:none}
@@ -231,7 +228,7 @@ main section{margin-bottom:20px}
       <label class="f">標題（選填）<input type="text" id="note-title" placeholder="例如：護照影本位置、訂房編號"></label>
       <label class="f">內容<textarea id="note-text" placeholder="寫下需要記住的重要事情"></textarea></label>
       <label class="f">提醒時間（選填）<input type="datetime-local" id="note-remind"></label>
-      <div class="f">提醒時區<select id="note-tz" hidden></select></div>
+      <label class="f">提醒時區<select id="note-tz"></select></label>
       <div class="tzh" id="note-tzhint"></div>
       <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（可多張，選填）</span><input type="file" id="note-photo" accept="image/*" multiple></label>
       <div class="pv" id="note-photo-pv"></div>
@@ -506,20 +503,6 @@ function tzOptions(sel,cur){
   cur=cur||DEV_TZ;if(!list.some(x=>x[0]===cur))list.push([cur,cur]);
   sel.innerHTML=list.map(([v,n])=>`<option value="${esc(v)}">${esc(n)}${v===DEV_TZ?'（目前裝置時區）':''}</option>`).join('');
   sel.value=cur;
-  if(sel._upd)sel._upd();
-}
-// 只顯示「最後選擇的時區」；要換時才按「更換」展開清單，選完自動收起並記住
-function tzUI(sel){
-  const w=document.createElement('div');w.className='tzcur';
-  w.innerHTML='<b></b><button type="button">更換</button>';
-  sel.parentNode.insertBefore(w,sel);
-  const nm=w.querySelector('b'),btn=w.querySelector('button');
-  const upd=()=>{const o=sel.options[sel.selectedIndex];nm.textContent=o?o.textContent:''};
-  const close=()=>{sel.hidden=true;w.hidden=false;upd()};
-  sel._upd=upd;upd();
-  btn.onclick=()=>{w.hidden=true;sel.hidden=false;sel.focus()};
-  sel.addEventListener('change',()=>{jset('travel__tz',sel.value);close()});
-  sel.addEventListener('blur',()=>setTimeout(close,200));
 }
 function tzParts(ms,tz){
   const p={};new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).formatToParts(new Date(ms)).forEach(x=>p[x.type]=x.value);
@@ -773,7 +756,7 @@ function editItem(type,id){
   $('ed-title').textContent=cfg.title;
   $('ed-body').innerHTML=cfg.f.map(([k,label,t])=>{
     const tz=i.remindTz||DEV_TZ,val=k==='remind'?toZonedInput(i.remind,tz):(i[k]??'');
-    if(t==='select')return `<div class="f">${label}<select data-k="${k}" hidden></select></div><div class="tzh" id="ed-tzhint"></div>`;
+    if(t==='select')return `<label class="f">${label}<select data-k="${k}"></select></label><div class="tzh" id="ed-tzhint"></div>`;
     return t==='textarea'
       ?`<label class="f">${label}<textarea data-k="${k}">${esc(val)}</textarea></label>`
       :`<label class="f">${label}<input type="${t}" data-k="${k}" ${t==='number'?'inputmode="decimal"':''} ${k==='country'?'list="countries"':''} value="${esc(val)}"></label>`;
@@ -786,7 +769,7 @@ function editItem(type,id){
   editImgs=(i.images||[]).slice();editFiles=(i.files||[]).slice();
   const tzSel=$('ed-body').querySelector('select[data-k=remindTz]');
   if(tzSel){
-    tzOptions(tzSel,i.remindTz);tzUI(tzSel);
+    tzOptions(tzSel,i.remindTz);
     const rIn=$('ed-body').querySelector('[data-k=remind]'),upd=()=>tzHint(rIn,tzSel,$('ed-tzhint'));
     rIn.oninput=rIn.onchange=tzSel.onchange=upd;upd();
   }
@@ -1214,7 +1197,7 @@ $('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()
   $(t+'-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$(t+'-input').blur();startLookup(t)}});
   ['country','region','address','note'].forEach(k=>$(t+'-'+k)&&$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
 });
-tzOptions($('note-tz'),jget('travel__tz',DEV_TZ));tzUI($('note-tz'));
+tzOptions($('note-tz'),jget('travel__tz',DEV_TZ));
 ['note-remind','note-tz'].forEach(id=>$(id).addEventListener('input',()=>tzHint($('note-remind'),$('note-tz'),$('note-tzhint'))));
 $('note-tz').addEventListener('change',()=>tzHint($('note-remind'),$('note-tz'),$('note-tzhint')));
 ['ticket-photo','ticket-file','souvenir-photo','expense-photo','expense-file','note-photo','note-file'].forEach(pickerInit);
