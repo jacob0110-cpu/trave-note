@@ -78,7 +78,6 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);b
 .pvi{position:relative;width:68px;height:68px}
 .pvi img{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block}
 .pvi button{position:absolute;top:-9px;right:-9px;width:28px;height:28px;border-radius:50%;background:var(--danger);color:#fff;font-size:18px;line-height:1;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
-.tzh{font-size:.8rem;color:var(--brand);font-weight:600;min-height:1.2em}
 .fchip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 4px 4px 12px;border:1px solid var(--line);border-radius:10px;font-size:.85rem;overflow-wrap:anywhere;background:var(--paper)}
 .fchip button{width:30px;height:30px;color:var(--danger);font-size:18px;flex:none}
 .nt{background:var(--paper);border-radius:var(--r);padding:14px;margin-bottom:12px;display:grid;gap:10px}
@@ -229,7 +228,6 @@ main section{margin-bottom:20px}
       <label class="f">內容<textarea id="note-text" placeholder="寫下需要記住的重要事情"></textarea></label>
       <label class="f">提醒時間（選填）<input type="datetime-local" id="note-remind"></label>
       <label class="f">提醒時區<select id="note-tz"></select></label>
-      <div class="tzh" id="note-tzhint"></div>
       <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（可多張，選填）</span><input type="file" id="note-photo" accept="image/*" multiple></label>
       <div class="pv" id="note-photo-pv"></div>
       <label class="pick"><i data-ic="note"></i><span>附加文件（PDF、Word 等，選填）</span><input type="file" id="note-file" data-kind="file" multiple></label>
@@ -522,17 +520,9 @@ function toZonedInput(ms,tz){
 }
 const toLocalInput=ms=>toZonedInput(ms,DEV_TZ);
 const fmtDT=(ms,tz)=>new Date(ms).toLocaleString('zh-TW',{month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:tz||DEV_TZ});
-// 顯示用：和裝置時區不同時，同時標出當地時間與你這裡的時間
+// 顯示用：只顯示所選時區的時間（舊資料沒有選時區，就用裝置時間）
 function fmtRemind(n){
-  const tz=n.remindTz;
-  if(!tz||tz===DEV_TZ)return fmtDT(n.remind);
-  return `${fmtDT(n.remind,tz)} ${tzName(tz)}時間（你這裡 ${fmtDT(n.remind)}）`;
-}
-// 輸入欄下方的即時換算提示
-function tzHint(inEl,tzEl,out){
-  if(!inEl.value){out.textContent='';return}
-  const ms=zonedToUtc(inEl.value,tzEl.value);
-  out.textContent=isNaN(ms)?'':(tzEl.value===DEV_TZ?'':`＝你這裡的時間 ${fmtDT(ms)}`);
+  return n.remindTz?`${fmtDT(n.remind,n.remindTz)} ${tzName(n.remindTz)}時間`:fmtDT(n.remind);
 }
 const noteTitle=n=>n.title||(n.text||'').split('\n')[0].slice(0,40)||'筆記提醒';
 function askNotify(){try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}}
@@ -550,7 +540,6 @@ async function addNote(btn){
       ['note-title','note-text','note-remind'].forEach(i=>{$(i).value=''});
       pickerClear('note-photo');pickerClear('note-file');
       if(remind){askNotify();jset('travel__tz',tz)}
-      tzHint($('note-remind'),$('note-tz'),$('note-tzhint'));
     }
   }finally{btn.textContent=label;btn.disabled=false;render()}
 }
@@ -756,7 +745,7 @@ function editItem(type,id){
   $('ed-title').textContent=cfg.title;
   $('ed-body').innerHTML=cfg.f.map(([k,label,t])=>{
     const tz=i.remindTz||DEV_TZ,val=k==='remind'?toZonedInput(i.remind,tz):(i[k]??'');
-    if(t==='select')return `<label class="f">${label}<select data-k="${k}"></select></label><div class="tzh" id="ed-tzhint"></div>`;
+    if(t==='select')return `<label class="f">${label}<select data-k="${k}"></select></label>`;
     return t==='textarea'
       ?`<label class="f">${label}<textarea data-k="${k}">${esc(val)}</textarea></label>`
       :`<label class="f">${label}<input type="${t}" data-k="${k}" ${t==='number'?'inputmode="decimal"':''} ${k==='country'?'list="countries"':''} value="${esc(val)}"></label>`;
@@ -768,11 +757,7 @@ function editItem(type,id){
   $('ed-body').querySelectorAll('[data-ic]').forEach(e=>e.innerHTML=ic(e.dataset.ic));
   editImgs=(i.images||[]).slice();editFiles=(i.files||[]).slice();
   const tzSel=$('ed-body').querySelector('select[data-k=remindTz]');
-  if(tzSel){
-    tzOptions(tzSel,i.remindTz);
-    const rIn=$('ed-body').querySelector('[data-k=remind]'),upd=()=>tzHint(rIn,tzSel,$('ed-tzhint'));
-    rIn.oninput=rIn.onchange=tzSel.onchange=upd;upd();
-  }
+  if(tzSel)tzOptions(tzSel,i.remindTz);
   if(cfg.photo){pickerInit('ed-photo');edCur()}
   if(cfg.files){pickerInit('ed-file');edFileCur()}
   $('ed-body').querySelectorAll('input[type=text],input[type=number],input[type=date]').forEach(el=>el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();saveEdit()}});
@@ -935,7 +920,7 @@ async function clearData(){
   pending=null;
   [looked,busy,cands].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
   document.querySelectorAll('main textarea').forEach(el=>el.value='');
-  tzOptions($('note-tz'),DEV_TZ);$('note-tzhint').textContent='';
+  tzOptions($('note-tz'),jget('travel__tz',DEV_TZ));
   document.querySelectorAll('main input').forEach(el=>{
     if(el.type==='file')el.value='';else el.value='';
   });
@@ -1198,8 +1183,6 @@ $('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()
   ['country','region','address','note'].forEach(k=>$(t+'-'+k)&&$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
 });
 tzOptions($('note-tz'),jget('travel__tz',DEV_TZ));
-['note-remind','note-tz'].forEach(id=>$(id).addEventListener('input',()=>tzHint($('note-remind'),$('note-tz'),$('note-tzhint'))));
-$('note-tz').addEventListener('change',()=>tzHint($('note-remind'),$('note-tz'),$('note-tzhint')));
 ['ticket-photo','ticket-file','souvenir-photo','expense-photo','expense-file','note-photo','note-file'].forEach(pickerInit);
 setInterval(checkAlarms,15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAlarms()});
