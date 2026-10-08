@@ -339,6 +339,7 @@ main section{margin-bottom:20px}
     <b>雲端同步</b>
     <p class="dnote" id="cloud-note"></p>
     <button class="btn" id="cloud-btn" onclick="cloudBtn()">使用 Google 登入</button>
+    <button class="btn ghost" id="cloud-sync" onclick="Sync.now()" hidden>立即重新同步</button>
   </div>
   <p class="dnote">資料先存在這個瀏覽器裡。換裝置或清除瀏覽資料前，記得先下載備份；登入雲端同步後，各裝置會自動共用。</p>
   <div class="dact">
@@ -988,7 +989,12 @@ function hashStr(str){  // 照片內容指紋：同一張照片只上傳一次
 }
 
 const Sync=(()=>{
-  let uid=null,user=null,unsub=null,pushing=false,again=false,timer=null,retry=null,q=Promise.resolve(),booted=false,status='out',lastErr='',first=true,bigWarned=false;
+  let uid=null,user=null,unsub=null,pushing=false,again=false,timer=null,retry=null,q=Promise.resolve(),booted=false,status='out',lastErr='',first=true,bigWarned=false,retryMs=0,retryT=null,applyErr='';
+  const CHUNK=500000;                      // 文件切段大小（字元），遠低於 Firestore 單筆 1MB 上限
+  // 網路請求加上逾時：卡住的上傳不會一直霸佔、擋住後面的同步
+  const T=(p,ms)=>{ms=ms||window.__TMO||90000;let id;return Promise.race([p,new Promise((_,no)=>{id=setTimeout(()=>no(Object.assign(new Error('逾時'),{code:'timeout'})),ms)})]).finally(()=>clearTimeout(id))};
+  const ERRS={'permission-denied':'沒有權限寫入雲端，請確認 Firestore 規則已貼上並按「發布」','unavailable':'網路不穩或暫時連不上','timeout':'上傳逾時（網路太慢）','resource-exhausted':'超過 Firebase 免費額度（今日讀寫次數或儲存量）','invalid-argument':'資料格式或大小不符（可能單筆太大）','unauthenticated':'登入已失效，請重新登入','failed-precondition':'Firestore 資料庫尚未建立或設定不完整','not-found':'找不到 Firestore 資料庫，請確認已建立'};
+  const errText=c=>ERRS[c]||c||'未知錯誤';
   const UP=new Set(jget('travel__photos',[]));
   const getSync=k=>jget('travel__sync',{})[k]||0;
   const setSync=(k,u)=>{const m=jget('travel__sync',{});m[k]=u;jset('travel__sync',m)};
@@ -997,16 +1003,16 @@ const Sync=(()=>{
 
   function paint(){
     const chip=$('sync-chip'),box=$('cloud-box'),note=$('cloud-note'),btn=$('cloud-btn');
-    if(!CLOUD_ON){chip.hidden=true;box.hidden=false;btn.hidden=true;
+    if(!CLOUD_ON){chip.hidden=true;box.hidden=false;btn.hidden=true;$('cloud-sync').hidden=true;
       note.textContent='尚未設定雲端同步。設定完成後，就能用 Google 帳號讓電腦和手機自動同步。';return}
-    box.hidden=false;btn.hidden=false;chip.hidden=false;
+    box.hidden=false;btn.hidden=false;chip.hidden=false;$('cloud-sync').hidden=!uid;
     const off=!navigator.onLine&&status!=='out';
     const st=off?'err':status;
     chip.dataset.s=st;
     chip.textContent={out:'未登入',sync:'同步中…',ok:'已同步',err:off?'離線':'同步失敗'}[st];
     if(uid){
       const t=jget('travel__last',0);
-      note.textContent='已登入：'+(user&&user.email||'')+'\n'+(status==='err'&&lastErr?'同步發生問題（'+lastErr+'），稍後會自動重試。':'資料會自動同步，只有這個帳號看得到。')+(t?'\n上次同步：'+new Date(t).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'');
+      note.textContent='已登入：'+(user&&user.email||'')+'\n'+(status==='err'&&lastErr?'同步發生問題：'+errText(lastErr)+'。稍後會自動重試，也可以按下方「立即重新同步」。':'資料會自動同步，只有這個帳號看得到。')+(t?'\n上次同步：'+new Date(t).toLocaleString('zh-TW',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'');
       btn.textContent='登出';btn.className='btn ghost';
     }else{
       note.textContent='登入後，電腦和手機的資料會自動同步，而且只有你自己看得到。';
@@ -1015,46 +1021,59 @@ const Sync=(()=>{
   }
   const setStatus=(s,e)=>{status=s;lastErr=e||'';if(s==='ok')jset('travel__last',Date.now());paint()};
 
+  // 上傳單一項目（先傳照片/文件，最後才寫項目本身）
+  async function pushItem(type,it){
+    const key=type+'_'+it.id,ids=[];
+    for(const img of it.images||[]){
+      const h=hashStr(img);
+      if(!UP.has(h)){
+        if(img.length>950000){if(!bigWarned){bigWarned=true;alert('有一張照片太大，無法同步到雲端（仍會保留在這支裝置）。')}continue}
+        await T(Cloud.putPhoto(uid,h,img));UP.add(h);jset('travel__photos',[...UP]);
+      }
+      ids.push(h);
+    }
+    // 文件可能超過單筆 1MB 上限，切成小段分別上傳
+    const fs=[];
+    for(const f of it.files||[]){
+      const h=hashStr(f.data),c=Math.max(1,Math.ceil(f.data.length/CHUNK));
+      for(let k=0;k<c;k++){
+        const pid=h+'~'+k;
+        if(!UP.has(pid)){await T(Cloud.putPhoto(uid,pid,f.data.slice(k*CHUNK,(k+1)*CHUNK)));UP.add(pid);jset('travel__photos',[...UP])}
+      }
+      fs.push({h,c,n:f.name||'',t:f.type||'',s:f.size||0});
+    }
+    const {images,files,u,...rest}=it;
+    await T(Cloud.putItem(uid,key,{t:type,d:JSON.stringify(rest),ids,fs,u:it.u,del:false}));
+    setSync(key,it.u);
+  }
   async function pushAll(){
     if(!uid||!navigator.onLine)return;
     if(pushing){again=true;return}
-    pushing=true;setStatus('sync');
+    pushing=true;clearTimeout(retryT);setStatus('sync');
+    let fail=null;
     try{
+      // 每個項目各自處理：某一筆失敗，不會擋住其他筆
       for(const type of KEYS){
         for(const it of Store.get(type)){
-          const key=type+'_'+it.id;if(it.u<=getSync(key))continue;
-          const ids=[];
-          for(const img of it.images||[]){
-            const h=hashStr(img);
-            if(!UP.has(h)){
-              if(img.length>950000){if(!bigWarned){bigWarned=true;alert('有一張照片太大，無法同步到雲端（仍會保留在這支裝置）。')}continue}
-              await Cloud.putPhoto(uid,h,img);UP.add(h);jset('travel__photos',[...UP]);
-            }
-            ids.push(h);
-          }
-          // 文件可能超過單筆 1MB 上限，切成小段分別上傳
-          const fs=[];
-          for(const f of it.files||[]){
-            const h=hashStr(f.data),c=Math.max(1,Math.ceil(f.data.length/700000));
-            for(let k=0;k<c;k++){
-              const pid=h+'~'+k;
-              if(!UP.has(pid)){await Cloud.putPhoto(uid,pid,f.data.slice(k*700000,(k+1)*700000));UP.add(pid);jset('travel__photos',[...UP])}
-            }
-            fs.push({h,c,n:f.name,t:f.type,s:f.size});
-          }
-          const {images,files,u,...rest}=it;
-          await Cloud.putItem(uid,key,{t:type,d:JSON.stringify(rest),ids,fs,u:it.u,del:false});
-          setSync(key,it.u);
+          if(it.u<=getSync(type+'_'+it.id))continue;
+          try{await pushItem(type,it)}catch(e){console.error('同步失敗',type,it.id,e);fail=fail||e}
         }
       }
       for(const [key,tb] of Object.entries(jget('travel__tomb',{}))){
         if(tb.u<=getSync(key))continue;
-        await Cloud.putItem(uid,key,{t:tb.t,d:'',ids:[],u:tb.u,del:true});
-        setSync(key,tb.u);
+        try{await T(Cloud.putItem(uid,key,{t:tb.t,d:'',ids:[],u:tb.u,del:true}));setSync(key,tb.u)}catch(e){console.error(e);fail=fail||e}
       }
-      setStatus('ok');
-    }catch(e){console.error(e);setStatus('err',e.code||e.message)}
-    finally{pushing=false;if(again){again=false;schedule()}}
+    }catch(e){console.error(e);fail=fail||e}
+    finally{pushing=false}
+    if(fail){                       // 失敗：顯示原因，並自動重試（間隔逐次拉長，最長 2 分鐘）
+      setStatus('err',fail.code||fail.message);
+      retryMs=Math.min((retryMs||window.__RETRY||10000)*2,120000);
+      retryT=setTimeout(pushAll,retryMs);
+    }else{
+      retryMs=0;
+      applyErr?setStatus('err',applyErr):setStatus('ok');
+    }
+    if(again){again=false;schedule()}
   }
   function schedule(){if(!uid)return;clearTimeout(timer);timer=setTimeout(pushAll,700)}
 
@@ -1075,7 +1094,7 @@ const Sync=(()=>{
     const have={};(local?local.images||[]:[]).forEach(im=>have[hashStr(im)]=im);
     const images=[];
     for(const h of r.ids||[]){
-      let d=have[h]||await Cloud.getPhoto(uid,h);
+      let d=have[h]||await T(Cloud.getPhoto(uid,h));
       if(!d)throw new Error('找不到雲端照片');
       images.push(d);UP.add(h);
     }
@@ -1085,7 +1104,7 @@ const Sync=(()=>{
       let f=haveF[m.h];
       if(!f){
         let data='';
-        for(let k=0;k<m.c;k++){const part=await Cloud.getPhoto(uid,m.h+'~'+k);if(part==null)throw new Error('找不到雲端文件');data+=part}
+        for(let k=0;k<m.c;k++){const part=await T(Cloud.getPhoto(uid,m.h+'~'+k));if(part==null)throw new Error('找不到雲端文件');data+=part}
         f={name:m.n,type:m.t,size:m.s,data};
       }
       for(let k=0;k<m.c;k++)UP.add(m.h+'~'+k);
@@ -1105,10 +1124,12 @@ const Sync=(()=>{
   }
   function onChanges(changes){
     q=q.then(async()=>{
-      let changed=false;
-      for(const c of changes)if(await applyChange(c))changed=true;
+      let changed=false,err=null;
+      for(const c of changes){try{if(await applyChange(c))changed=true}catch(e){console.error('套用雲端資料失敗',c.id,e);err=err||e}}
       if(changed){render();jset('travel__last',Date.now())}
-      if(first){first=false}
+      first=false;
+      applyErr=err?(err.code||err.message):'';
+      if(err)relisten(15000);        // 稍後重新取得一次
       pushAll();
     }).catch(e=>{console.error(e);setStatus('err',e.code||e.message);relisten(15000)});
   }
@@ -1144,6 +1165,7 @@ const Sync=(()=>{
       document.addEventListener('visibilitychange',()=>{if(!document.hidden&&uid)pushAll()});
     },
     dirty(){if(CLOUD_ON)schedule()},
+    now(){if(!uid)return;retryMs=0;applyErr='';listen();pushAll()},
     signedIn:()=>!!uid,
     async signIn(){if(!booted){await boot()}if(!booted)throw new Error('離線或無法連上雲端服務');return Cloud.signIn()},
     signOut:()=>Cloud.signOut(),
