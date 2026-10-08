@@ -39,8 +39,9 @@ h1{font-size:1.3rem;font-weight:700;letter-spacing:.04em}
 main{padding-top:22px}
 h2{font-size:1.1rem;margin-bottom:14px}
 .add{display:flex;gap:8px;margin-bottom:18px}
-input[type=text],input[type=number]{width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);min-height:48px}
-input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--soft)}
+input[type=text],input[type=number],input[type=datetime-local],textarea{width:100%;font:inherit;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--paper);min-height:48px}
+textarea{min-height:110px;resize:vertical;line-height:1.55}
+input:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--soft)}
 .btn{background:var(--brand);color:var(--on-brand);font-weight:700;border-radius:12px;padding:0 20px;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
 .btn:active{transform:scale(.97)}
 .btn:disabled{opacity:.6}
@@ -75,6 +76,30 @@ input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--so
 .pvi{position:relative;width:68px;height:68px}
 .pvi img{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block}
 .pvi button{position:absolute;top:-9px;right:-9px;width:28px;height:28px;border-radius:50%;background:var(--danger);color:#fff;font-size:18px;line-height:1;display:grid;place-items:center;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.fchip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 4px 4px 12px;border:1px solid var(--line);border-radius:10px;font-size:.85rem;overflow-wrap:anywhere;background:var(--paper)}
+.fchip button{width:30px;height:30px;color:var(--danger);font-size:18px;flex:none}
+.nt{background:var(--paper);border-radius:var(--r);padding:14px;margin-bottom:12px;display:grid;gap:10px}
+.nt .nh{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.nt .nh b{overflow-wrap:anywhere;line-height:1.4}
+.nt .tx{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.nt .imgs{display:grid;gap:8px}
+.nt .imgs img{width:100%;border-radius:12px;display:block;cursor:zoom-in}
+.rrow{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
+.rem{display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:700;color:var(--brand);background:var(--soft);padding:5px 12px;border-radius:99px}
+.rem svg{width:16px;height:16px}
+.rem.due{color:var(--danger);outline:1.5px solid var(--danger)}
+.rem.fin{opacity:.6}
+.lnk{color:var(--brand);font-weight:600;font-size:.85rem;display:inline-flex;align-items:center;gap:6px;padding:6px 0}
+.fl{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
+.fl svg{width:20px;height:20px;flex:none;color:var(--brand)}
+.fl .fn{overflow-wrap:anywhere;line-height:1.35;min-width:0}
+.fl small{display:block;color:var(--muted);font-size:.75rem}
+.fl button{margin-left:auto;color:var(--brand);font-weight:700;padding:8px 4px;flex:none}
+#alarm{position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));z-index:30;display:grid;gap:8px;max-width:32rem;margin:0 auto}
+#alarm .al{background:var(--paper);border:2px solid var(--accent);border-radius:14px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:grid;gap:6px}
+#alarm .al small{color:var(--muted)}
+#alarm .al-act{display:flex;gap:8px;flex-wrap:wrap}
+#alarm .btn{min-height:42px;padding:0 14px;font-size:.9rem}
 .ths{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .card .strip{display:flex;gap:6px;padding:6px 6px 0;overflow-x:auto}
 .card .strip img{width:44px;height:44px;aspect-ratio:auto;border-radius:8px;flex:none}
@@ -150,7 +175,7 @@ details.place summary small{display:block;color:var(--muted);font-weight:400;fon
 body{padding:0;background:#fff;font-size:12pt}
 header{background:#fff;color:#000;border-bottom:2px solid #000;border-radius:0;padding:0 0 10px}
 .wrap{max-width:none}
-.reset,.chip,nav,.add,.panel,.del,.ed-b,.pv,.use,.chev,.plinks button,.bar,dialog{display:none!important}
+.reset,.chip,#alarm,.rrow .lnk,.fl button,nav,.add,.panel,.del,.ed-b,.pv,.use,.chev,.plinks button,.bar,dialog{display:none!important}
 main section[hidden]{display:block!important}
 main section{margin-bottom:20px}
 .sheet,.card,.tk,details.place{border:1px solid var(--line)}
@@ -185,6 +210,21 @@ main section{margin-bottom:20px}
     <h2>行李與準備清單</h2>
     <div class="add"><input type="text" id="checklist-input" placeholder="例如：護照、充電線" aria-label="新增準備項目" enterkeyhint="done"><button class="btn" onclick="addItem()"><i data-ic="plus"></i>新增</button></div>
     <div id="checklist-items"></div>
+  </section>
+
+  <section id="view-notes" hidden>
+    <h2>生活小筆記</h2>
+    <div class="panel">
+      <label class="f">標題（選填）<input type="text" id="note-title" placeholder="例如：護照影本位置、訂房編號"></label>
+      <label class="f">內容<textarea id="note-text" placeholder="寫下需要記住的重要事情"></textarea></label>
+      <label class="f">提醒時間（選填）<input type="datetime-local" id="note-remind"></label>
+      <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（可多張，選填）</span><input type="file" id="note-photo" accept="image/*" multiple></label>
+      <div class="pv" id="note-photo-pv"></div>
+      <label class="pick"><i data-ic="note"></i><span>附加文件（PDF、Word 等，選填）</span><input type="file" id="note-file" data-kind="file" multiple></label>
+      <div class="pv" id="note-file-pv"></div>
+      <button class="btn" onclick="addNote(this)">儲存筆記</button>
+    </div>
+    <div id="notes-items"></div>
   </section>
 
   <section id="view-souvenirs" hidden>
@@ -264,7 +304,9 @@ main section{margin-bottom:20px}
   <button data-tab="tickets"><i data-ic="ticket"></i>票券</button>
   <button data-tab="spots"><i data-ic="pin"></i>景點</button>
   <button data-tab="food"><i data-ic="utensils"></i>餐廳</button>
+  <button data-tab="notes"><i data-ic="note"></i>生活筆記</button>
 </nav>
+<div id="alarm" aria-live="assertive"></div>
 
 <datalist id="countries"><option value="台灣"><option value="日本"><option value="韓國"><option value="泰國"><option value="越南"><option value="新加坡"><option value="馬來西亞"><option value="香港"><option value="中國"><option value="美國"><option value="英國"><option value="法國"><option value="義大利"><option value="德國"><option value="西班牙"><option value="澳洲"></datalist>
 
@@ -307,6 +349,8 @@ main section{margin-bottom:20px}
 
 <script>
 const ICONS={
+  note:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/>',
+  bell:'<path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"/>',
   plus:'<path d="M12 5v14M5 12h14"/>',
   check:'<path d="M20 6 9 17l-5-5"/>',
   trash:'<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
@@ -374,10 +418,15 @@ const PICK={},PURL={},PDEF={};
 function pickerRefresh(id){
   if(!$(id))return;
   (PURL[id]||[]).forEach(u=>URL.revokeObjectURL(u));
-  const files=PICK[id]||[];
-  PURL[id]=files.map(f=>URL.createObjectURL(f));
-  $(id).parentElement.querySelector('span').textContent=files.length?`已選 ${files.length} 張（可繼續加入）`:PDEF[id];
-  $(id+'-pv').innerHTML=PURL[id].map((u,n)=>`<span class="pvi"><img src="${u}" alt="已選照片 ${n+1}"><button type="button" aria-label="移除這張照片" onclick="pickerDel('${id}',${n})">×</button></span>`).join('');
+  const el=$(id),isF=el.dataset.kind==='file',files=PICK[id]||[];
+  el.parentElement.querySelector('span').textContent=files.length?`已選 ${files.length} ${isF?'個檔案':'張'}（可繼續加入）`:PDEF[id];
+  if(isF){
+    PURL[id]=[];
+    $(id+'-pv').innerHTML=files.map((f,n)=>`<span class="fchip">${esc(f.name)}<button type="button" aria-label="移除這個檔案" onclick="pickerDel('${id}',${n})">×</button></span>`).join('');
+  }else{
+    PURL[id]=files.map(f=>URL.createObjectURL(f));
+    $(id+'-pv').innerHTML=PURL[id].map((u,n)=>`<span class="pvi"><img src="${u}" alt="已選照片 ${n+1}"><button type="button" aria-label="移除這張照片" onclick="pickerDel('${id}',${n})">×</button></span>`).join('');
+  }
 }
 function pickerDel(id,n){(PICK[id]||[]).splice(n,1);pickerRefresh(id)}
 function pickerClear(id){PICK[id]=[];pickerRefresh(id)}
@@ -390,6 +439,95 @@ function compressMany(files,maxW,q){
   let bad=0;
   return files.reduce((p,f)=>p.then(arr=>new Promise(r=>compressImage(f,img=>{img?arr.push(img):bad++;r(arr)},maxW,q))),Promise.resolve([]))
     .then(arr=>{if(bad)alert(bad+' 張照片無法讀取，已略過。');return arr});
+}
+
+// === 文件附件：讀成 dataURL 存起來（單一檔案上限 1.5 MB）===
+const MAX_FILE=1.5*1024*1024;
+function readFiles(list){
+  const bad=[];
+  return list.reduce((p,f)=>p.then(arr=>{
+    if(f.size>MAX_FILE){bad.push(f.name);return arr}
+    return new Promise(res=>{
+      const r=new FileReader();
+      r.onload=()=>{arr.push({name:f.name,type:f.type||'',size:f.size,data:r.result});res(arr)};
+      r.onerror=()=>{bad.push(f.name);res(arr)};
+      r.readAsDataURL(f);
+    });
+  }),Promise.resolve([])).then(arr=>{
+    if(bad.length)alert('這些檔案太大或無法讀取，已略過（單一檔案上限 1.5 MB）：\n'+bad.join('\n'));
+    return arr;
+  });
+}
+const fmtSize=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.max(1,Math.round(n/1024))+' KB';
+function dataToBlob(url,type){
+  const [h,b]=url.split(','),mime=type||(h.match(/:(.*?);/)||[])[1]||'application/octet-stream',bin=atob(b),u=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
+  return new Blob([u],{type:mime});
+}
+function openFile(id,i){
+  const n=Store.get('notes').find(x=>x.id===id),f=n&&(n.files||[])[i];if(!f)return;
+  const blob=dataToBlob(f.data,f.type),url=URL.createObjectURL(blob);
+  const dl=()=>{const a=document.createElement('a');a.href=url;a.download=f.name;document.body.appendChild(a);a.click();a.remove()};
+  if(/pdf|^text\/|^image\//.test(blob.type)){if(!window.open(url,'_blank'))dl()}else dl();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+
+// === 生活小筆記 + 提醒 ===
+const fmtDT=ms=>new Date(ms).toLocaleString('zh-TW',{month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false});
+const toLocalInput=ms=>{if(!ms)return '';const d=new Date(ms-new Date(ms).getTimezoneOffset()*60000);return d.toISOString().slice(0,16)};
+const noteTitle=n=>n.title||(n.text||'').split('\n')[0].slice(0,40)||'筆記提醒';
+function askNotify(){try{if('Notification' in window&&Notification.permission==='default')Notification.requestPermission()}catch(e){}}
+async function addNote(btn){
+  const title=$('note-title').value.trim(),text=$('note-text').value.trim(),rv=$('note-remind').value,remind=rv?new Date(rv).getTime():0;
+  const photos=(PICK['note-photo']||[]).slice(),docs=(PICK['note-file']||[]).slice();
+  if(!title&&!text&&!photos.length&&!docs.length){alert('請至少輸入標題或內容，或附上照片、文件。');return $('note-text').focus()}
+  if(remind&&remind<=Date.now()&&!confirm('提醒時間已經過了，儲存後會立刻提醒。要繼續嗎？'))return;
+  const label=btn.textContent;btn.textContent='處理中…';btn.disabled=true;
+  try{
+    const [images,files]=await Promise.all([photos.length?compressMany(photos,1000,.8):[],readFiles(docs)]);
+    const d=Store.get('notes');
+    d.unshift({id:Date.now(),title,text,remind,rdone:false,images,files});
+    if(Store.set('notes',d)){
+      ['note-title','note-text','note-remind'].forEach(i=>{$(i).value=''});
+      pickerClear('note-photo');pickerClear('note-file');
+      if(remind)askNotify();
+    }
+  }finally{btn.textContent=label;btn.disabled=false;render()}
+}
+function noteCard(n){
+  const st=n.rdone?'fin':(n.remind&&n.remind<=Date.now()?'due':'');
+  const im=n.images||[],fl=n.files||[];
+  return `<article class="nt">
+    <div class="nh"><b>${esc(n.title||'')}</b>${acts('notes',n.id)}</div>
+    ${n.text?`<div class="tx">${esc(n.text)}</div>`:''}
+    ${n.remind?`<div class="rrow"><span class="rem ${st}">${ic('bell')}${fmtDT(n.remind)}${n.rdone?'（已提醒）':st==='due'?'（時間到了）':''}</span><button class="lnk" onclick="exportIcs(${n.id})">${ic('out')}加到手機行事曆</button></div>`:''}
+    ${im.length?`<div class="imgs">${im.map(x=>`<img src="${x}" alt="筆記照片" onclick="zoom(this.src)">`).join('')}</div>`:''}
+    ${fl.map((f,i)=>`<div class="fl">${ic('note')}<span class="fn">${esc(f.name)}<small>${fmtSize(f.size||0)}</small></span><button onclick="openFile(${n.id},${i})">開啟</button></div>`).join('')}
+  </article>`;
+}
+const SHOWN=new Set();
+function beep(){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();setTimeout(()=>{o.stop();c.close()},350)}catch(e){}}
+function checkAlarms(){
+  const box=$('alarm');if(!box)return;
+  const now=Date.now(),due=Store.get('notes').filter(n=>n.remind&&!n.rdone&&n.remind<=now);
+  const html=due.map(n=>`<div class="al" role="alert"><b>⏰ ${esc(noteTitle(n))}</b><small>${fmtDT(n.remind)}</small><div class="al-act"><button class="btn" onclick="ackNote(${n.id})">我知道了</button><button class="btn ghost" onclick="snoozeNote(${n.id})">10 分鐘後再提醒</button><button class="btn ghost" onclick="switchTab('notes');window.scrollTo(0,0)">看筆記</button></div></div>`).join('');
+  if(box.innerHTML!==html)box.innerHTML=html;
+  due.forEach(n=>{
+    const k=n.id+':'+n.remind;if(SHOWN.has(k))return;SHOWN.add(k);
+    try{if('Notification' in window&&Notification.permission==='granted')new Notification('⏰ '+noteTitle(n),{body:fmtDT(n.remind),tag:k})}catch(e){}
+    try{navigator.vibrate&&navigator.vibrate([300,150,300])}catch(e){}
+    beep();
+  });
+}
+function setNote(id,patch){const d=Store.get('notes'),n=d.find(x=>x.id===id);if(!n)return;Object.assign(n,patch);Store.set('notes',d);render()}
+const ackNote=id=>setNote(id,{rdone:true});
+const snoozeNote=id=>setNote(id,{remind:Date.now()+10*60000,rdone:false});
+function exportIcs(id){
+  const n=Store.get('notes').find(x=>x.id===id);if(!n||!n.remind)return;
+  const z=t=>new Date(t).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,''),e=t=>String(t||'').replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');
+  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//TravelNotebook//ZH','BEGIN:VEVENT','UID:note-'+n.id+'@travelnotebook','DTSTAMP:'+z(Date.now()),'DTSTART:'+z(n.remind),'DTEND:'+z(n.remind+1800000),'SUMMARY:'+e(noteTitle(n)),'DESCRIPTION:'+e(n.text),'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+e(noteTitle(n)),'TRIGGER:PT0S','END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar;charset=utf-8'}));a.download='reminder-'+n.id+'.ics';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),3000);
 }
 
 // === 分頁 ===
@@ -532,24 +670,39 @@ const EDIT={
   expenses:{title:'編輯花費',f:[['text1','花費金額','number'],['text2','項目說明','text']],photo:[600,.6]},
   tickets:{title:'編輯票券',f:[['text1','票券名稱','text'],['date','使用日期（選填）','date'],['note','備註（選填）','text']],photo:[1000,.8]},
   spots:{title:'編輯景點',f:[['name','景點名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','text']]},
-  food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text']]}
+  food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text']]},
+  notes:{title:'編輯筆記',f:[['title','標題（選填）','text'],['text','內容','textarea'],['remind','提醒時間（選填，清空即取消提醒）','datetime-local']],photo:[1000,.8],files:true,any:true}
 };
-let editing=null,editImgs=[];
+let editing=null,editImgs=[],editFiles=[];
 function edCur(){
   $('ed-curh').textContent=editImgs.length?`目前的照片（${editImgs.length} 張，點 × 可移除）`:'';
   $('ed-cur').innerHTML=editImgs.map((src,n)=>`<span class="pvi"><img src="${src}" alt="目前的照片 ${n+1}"><button type="button" aria-label="移除這張照片" onclick="edImgDel(${n})">×</button></span>`).join('');
 }
 function edImgDel(n){editImgs.splice(n,1);edCur()}
+function edFileCur(){
+  if(!$('ed-fcur'))return;
+  $('ed-fcurh').textContent=editFiles.length?`目前的文件（${editFiles.length} 個，點 × 可移除）`:'';
+  $('ed-fcur').innerHTML=editFiles.map((f,n)=>`<span class="fchip">${esc(f.name)}<button type="button" aria-label="移除這個文件" onclick="edFileDel(${n})">×</button></span>`).join('');
+}
+function edFileDel(n){editFiles.splice(n,1);edFileCur()}
 function editItem(type,id){
   const i=Store.get(type).find(x=>x.id===id),cfg=EDIT[type];if(!i)return;
   editing={type,id};
   $('ed-title').textContent=cfg.title;
-  $('ed-body').innerHTML=cfg.f.map(([k,label,t],n)=>`<label class="f">${label}<input type="${t}" data-k="${k}" ${t==='number'?'inputmode="decimal"':''} ${k==='country'?'list="countries"':''} value="${esc(i[k])}"></label>`).join('')
+  $('ed-body').innerHTML=cfg.f.map(([k,label,t])=>{
+    const val=k==='remind'?toLocalInput(i[k]):(i[k]??'');
+    return t==='textarea'
+      ?`<label class="f">${label}<textarea data-k="${k}">${esc(val)}</textarea></label>`
+      :`<label class="f">${label}<input type="${t}" data-k="${k}" ${t==='number'?'inputmode="decimal"':''} ${k==='country'?'list="countries"':''} value="${esc(val)}"></label>`;
+  }).join('')
     +(cfg.photo?`<p class="hint" id="ed-curh"></p><div class="pv" id="ed-cur"></div>
-      <label class="pick"><i data-ic="camera"></i><span>加入照片（可多張，選填）</span><input type="file" id="ed-photo" accept="image/*" multiple></label><div class="pv" id="ed-photo-pv"></div>`:'');
+      <label class="pick"><i data-ic="camera"></i><span>加入照片（可多張，選填）</span><input type="file" id="ed-photo" accept="image/*" multiple></label><div class="pv" id="ed-photo-pv"></div>`:'')
+    +(cfg.files?`<p class="hint" id="ed-fcurh"></p><div class="pv" id="ed-fcur"></div>
+      <label class="pick"><i data-ic="note"></i><span>加入文件（選填）</span><input type="file" id="ed-file" data-kind="file" multiple></label><div class="pv" id="ed-file-pv"></div>`:'');
   $('ed-body').querySelectorAll('[data-ic]').forEach(e=>e.innerHTML=ic(e.dataset.ic));
-  editImgs=(i.images||[]).slice();
+  editImgs=(i.images||[]).slice();editFiles=(i.files||[]).slice();
   if(cfg.photo){pickerInit('ed-photo');edCur()}
+  if(cfg.files){pickerInit('ed-file');edFileCur()}
   $('ed-body').querySelectorAll('input[type=text],input[type=number],input[type=date]').forEach(el=>el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();saveEdit()}});
   $('ed').showModal();
 }
@@ -558,17 +711,31 @@ function saveEdit(){
   const {type,id}=editing,cfg=EDIT[type],d=Store.get(type),i=d.find(x=>x.id===id);
   if(!i){$('ed').close();return}
   const v={};$('ed-body').querySelectorAll('[data-k]').forEach(el=>v[el.dataset.k]=el.value.trim());
-  const first=cfg.f[0][0];
-  if(!v[first]){alert('「'+cfg.f[0][1]+'」不能空白');return $('ed-body').querySelector('[data-k]').focus()}
-  const btn=$('ed-save'),label=btn.textContent,files=cfg.photo?(PICK['ed-photo']||[]).slice():[];
-  const done=added=>{
+  const photos=cfg.photo?(PICK['ed-photo']||[]).slice():[],docs=cfg.files?(PICK['ed-file']||[]).slice():[];
+  if(cfg.any){
+    if(!v.title&&!v.text&&!editImgs.length&&!editFiles.length&&!photos.length&&!docs.length){alert('標題、內容、照片、文件至少要留一項。');return}
+  }else{
+    const first=cfg.f[0][0];
+    if(!v[first]){alert('「'+cfg.f[0][1]+'」不能空白');return $('ed-body').querySelector('[data-k]').focus()}
+  }
+  if(type==='notes'){
+    v.remind=v.remind?new Date(v.remind).getTime():0;
+    if(v.remind!==(i.remind||0)){
+      v.rdone=false;
+      if(v.remind&&v.remind<=Date.now()&&!confirm('提醒時間已經過了，儲存後會立刻提醒。要繼續嗎？'))return;
+      if(v.remind)askNotify();
+    }
+  }
+  const btn=$('ed-save'),label=btn.textContent;
+  const busy=photos.length||docs.length;
+  if(busy){btn.textContent='處理中…';btn.disabled=true}
+  Promise.all([photos.length?compressMany(photos,cfg.photo[0],cfg.photo[1]):[],docs.length?readFiles(docs):[]]).then(([addedImgs,addedFiles])=>{
     Object.assign(i,v);
-    if(cfg.photo)i.images=editImgs.concat(added);
+    if(cfg.photo)i.images=editImgs.concat(addedImgs);
+    if(cfg.files)i.files=editFiles.concat(addedFiles);
     if(Store.set(type,d)){editing=null;$('ed').close();render()}
     btn.textContent=label;btn.disabled=false;
-  };
-  if(files.length){btn.textContent='處理中…';btn.disabled=true;compressMany(files,cfg.photo[0],cfg.photo[1]).then(done)}
-  else done([]);
+  });
 }
 function loadMap(el){
   const box=el.querySelector('.map');
@@ -622,6 +789,9 @@ function render(){
       ${(i.images||[]).map(x=>`<img src="${x}" alt="${esc(i.text1)} 票券" onclick="zoom(this.src)">`).join('')}
     </div>`).join(''):empty('把車票、通行證或 QR Code 拍下來，搭車時直接翻出來用。');
 
+  const nt=Store.get('notes');
+  $('notes-items').innerHTML=nt.length?nt.map(noteCard).join(''):empty('記下重要的事、拍下文件，還能設定提醒時間。');
+
   [['spots','pin','景點'],['food','utensils','餐廳']].forEach(([type,icon,name])=>{
     const items=Store.get(type);
     $(type+'-items').innerHTML=items.length?items.map(i=>`
@@ -636,10 +806,11 @@ function render(){
         </div>
       </details>`).join(''):empty(`填入${name}名稱和所在地區，就能直接在這裡看地圖。`);
   });
+  checkAlarms();
 }
 
 // === 備份 / 匯入 / 列印 ===
-const KEYS=['checklist','souvenirs','expenses','tickets','spots','food'];
+const KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes'];
 function exportData(){
   const data={};KEYS.forEach(k=>data[k]=Store.get(k));
   const blob=new Blob([JSON.stringify({app:'TravelNotebook',version:1,exported:new Date().toISOString(),data})],{type:'application/json'});
@@ -689,6 +860,7 @@ async function clearData(){
   // 2. 清掉畫面上殘留的暫存、查詢結果與表單內容
   pending=null;
   [looked,busy,cands].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
+  document.querySelectorAll('main textarea').forEach(el=>el.value='');
   document.querySelectorAll('main input').forEach(el=>{
     if(el.type==='file')el.value='';else el.value='';
   });
@@ -744,7 +916,7 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
 };
 const Cloud=window.__CLOUD||FB;
 const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
-const PHOTO_TYPES=['souvenirs','expenses','tickets'];
+const PHOTO_TYPES=['souvenirs','expenses','tickets','notes'];
 
 function hashStr(str){  // 照片內容指紋：同一張照片只上傳一次
   let h1=0xdeadbeef,h2=0x41c6ce57;
@@ -799,8 +971,18 @@ const Sync=(()=>{
             }
             ids.push(h);
           }
-          const {images,u,...rest}=it;
-          await Cloud.putItem(uid,key,{t:type,d:JSON.stringify(rest),ids,u:it.u,del:false});
+          // 文件可能超過單筆 1MB 上限，切成小段分別上傳
+          const fs=[];
+          for(const f of it.files||[]){
+            const h=hashStr(f.data),c=Math.max(1,Math.ceil(f.data.length/700000));
+            for(let k=0;k<c;k++){
+              const pid=h+'~'+k;
+              if(!UP.has(pid)){await Cloud.putPhoto(uid,pid,f.data.slice(k*700000,(k+1)*700000));UP.add(pid);jset('travel__photos',[...UP])}
+            }
+            fs.push({h,c,n:f.name,t:f.type,s:f.size});
+          }
+          const {images,files,u,...rest}=it;
+          await Cloud.putItem(uid,key,{t:type,d:JSON.stringify(rest),ids,fs,u:it.u,del:false});
           setSync(key,it.u);
         }
       }
@@ -836,12 +1018,25 @@ const Sync=(()=>{
       if(!d)throw new Error('找不到雲端照片');
       images.push(d);UP.add(h);
     }
+    const haveF={};(local?local.files||[]:[]).forEach(f=>haveF[hashStr(f.data)]=f);
+    const files=[];
+    for(const m of r.fs||[]){
+      let f=haveF[m.h];
+      if(!f){
+        let data='';
+        for(let k=0;k<m.c;k++){const part=await Cloud.getPhoto(uid,m.h+'~'+k);if(part==null)throw new Error('找不到雲端文件');data+=part}
+        f={name:m.n,type:m.t,size:m.s,data};
+      }
+      for(let k=0;k<m.c;k++)UP.add(m.h+'~'+k);
+      files.push(f);
+    }
     jset('travel__photos',[...UP]);
     // 上面有等待網路，之後重新讀取最新的本機資料再寫入（中間不再等待）
     const list=Store.get(type);local=list.find(x=>String(x.id)===idn);
     if(local&&local.u>=r.u)return false;
     const item=Object.assign(JSON.parse(r.d),{u:r.u});
     if(PHOTO_TYPES.includes(type))item.images=images;
+    if(type==='notes')item.files=files;
     if(local)list[list.indexOf(local)]=item;else list.push(item);
     list.sort((a,b)=>b.id-a.id);
     Store.raw(type,list);setSync(key,r.u);
@@ -926,7 +1121,9 @@ $('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()
   $(t+'-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$(t+'-input').blur();startLookup(t)}});
   ['country','region','address','note'].forEach(k=>$(t+'-'+k)&&$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
 });
-['ticket-photo','souvenir-photo','expense-photo'].forEach(pickerInit);
+['ticket-photo','souvenir-photo','expense-photo','note-photo','note-file'].forEach(pickerInit);
+setInterval(checkAlarms,15000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAlarms()});
 try{localStorage.removeItem('travel_ocr_ok')}catch(e){}
 render();
 Sync.init();
