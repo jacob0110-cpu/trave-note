@@ -107,6 +107,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);b
 .ths{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .card .strip{display:flex;gap:6px;padding:6px 6px 0;overflow-x:auto}
 .card .strip img{width:44px;height:44px;aspect-ratio:auto;border-radius:8px;flex:none}
+.amt small{display:block;font-size:.75rem;font-weight:500;color:var(--muted)}
 .amt{font-weight:700;font-size:1.15rem;font-variant-numeric:tabular-nums;min-width:4.5rem}
 .thumb{width:52px;height:52px;border-radius:10px;object-fit:cover;cursor:zoom-in}
 
@@ -209,7 +210,7 @@ main section{margin-bottom:20px}
     </div>
     <div class="stats">
       <div class="stat"><small>行李準備</small><b id="st-prog">0 / 0</b><div class="bar"><i id="st-bar"></i></div></div>
-      <div class="stat"><small>累計花費</small><b id="st-total">$0</b></div>
+      <div class="stat"><small>累計花費（台幣）</small><b id="st-total">NT$0</b></div>
     </div>
   </div>
 </header>
@@ -251,7 +252,15 @@ main section{margin-bottom:20px}
   <section id="view-expenses" hidden>
     <h2>每日記帳</h2>
     <div class="panel">
-      <label class="f">花費金額<input type="number" id="expense-amount" inputmode="decimal" placeholder="輸入金額"></label>
+      <div class="two">
+        <label class="f">花費金額<input type="number" id="expense-amount" inputmode="decimal" placeholder="輸入金額" oninput="fxPreview()"></label>
+        <label class="f">幣別<select id="expense-cur" onchange="fxCurChange()"></select></label>
+      </div>
+      <div id="expense-fx" hidden>
+        <label class="f">匯率（1 <span id="expense-fxname"></span> ＝ 幾元台幣）<input type="number" id="expense-rate" inputmode="decimal" step="any" oninput="fxPreview()"></label>
+        <button type="button" class="chip" style="margin-top:8px" onclick="fxUpdate(this)">取得最新匯率</button>
+      </div>
+      <p class="hint" id="expense-twd"></p>
       <label class="f">項目說明<input type="text" id="expense-desc" placeholder="例如：晚餐拉麵"></label>
       <label class="pick"><i data-ic="camera"></i><span>拍下收據（可多張，選填）</span><input type="file" id="expense-photo" accept="image/*" multiple></label>
       <div class="pv" id="expense-photo-pv"></div>
@@ -678,23 +687,69 @@ function deleteItem(type,id){
   Store.set(type,Store.get(type).filter(i=>i.id!==id));render();
 }
 
+// === 幣別與匯率（總花費一律換算成台幣）===
+const CURS=[['TWD','台幣 TWD','NT$'],['JPY','日圓 JPY','¥'],['USD','美元 USD','US$'],['KRW','韓元 KRW','₩'],['EUR','歐元 EUR（芬蘭）','€'],['NOK','挪威克朗 NOK','kr'],['THB','泰銖 THB','฿'],['HKD','港幣 HKD','HK$'],['CNY','人民幣 CNY','CN¥'],['GBP','英鎊 GBP','£'],['SGD','新加坡幣 SGD','S$'],['MYR','馬來西亞令吉 MYR','RM'],['VND','越南盾 VND','₫']];
+const RATE0={TWD:1,JPY:.21,USD:32,KRW:.023,EUR:36,NOK:3,THB:.9,HKD:4.1,CNY:4.5,GBP:42,SGD:25,MYR:7.3,VND:.0013};   // 預設值只是粗估，請按「取得最新匯率」或自行修改
+const curSym=c=>(CURS.find(x=>x[0]===c)||[0,0,c])[2];
+const rateDef=c=>c==='TWD'?1:(jget('travel__rates',{})[c]||RATE0[c]||1);
+const rateOf=i=>(!i.cur||i.cur==='TWD')?1:(Number(i.rate)>0?Number(i.rate):rateDef(i.cur));
+const twdOf=i=>(Number(i.text1)||0)*rateOf(i);
+const fmtN=n=>Number(n).toLocaleString(undefined,{maximumFractionDigits:2});
+const fmtTwd=n=>'NT$'+Math.round(n).toLocaleString();
+function curOptions(sel,cur){sel.innerHTML=CURS.map(([c,n])=>`<option value="${c}" ${c===cur?'selected':''}>${n}</option>`).join('')}
+function fxFill(){
+  const c=$('expense-cur').value,tw=c==='TWD';
+  $('expense-fx').hidden=tw;
+  if(!tw){$('expense-fxname').textContent=c;$('expense-rate').value=rateDef(c)}
+  fxPreview();
+}
+function fxCurChange(){jset('travel__lastcur',$('expense-cur').value);fxFill()}
+function fxPreview(){
+  const c=$('expense-cur').value,a=Number($('expense-amount').value),r=c==='TWD'?1:Number($('expense-rate').value);
+  $('expense-twd').textContent=(c!=='TWD'&&a>0&&r>0)?`約合 ${fmtTwd(a*r)}`:'';
+}
+async function fxUpdate(btn,after){
+  const c=btn&&btn.dataset.cur||$('expense-cur').value,label=btn?btn.textContent:'';
+  if(btn){btn.textContent='取得中…';btn.disabled=true}
+  try{
+    const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),10000);
+    const r=await fetch('https://open.er-api.com/v6/latest/TWD',{signal:ctl.signal});clearTimeout(t);
+    const j=await r.json();if(!j.rates||!j.rates[c])throw new Error('no rate');
+    const m=jget('travel__rates',{});
+    CURS.forEach(([k])=>{if(k!=='TWD'&&j.rates[k])m[k]=Math.round(1e6/j.rates[k])/1e6});
+    jset('travel__rates',m);
+    if(after)after(m[c]);else{$('expense-rate').value=m[c];fxPreview()}
+  }catch(e){alert('目前無法取得最新匯率（需要網路）。請自行輸入匯率。')}
+  if(btn){btn.textContent=label;btn.disabled=false}
+}
+curOptions($('expense-cur'),jget('travel__lastcur','TWD'));fxFill();
+
 // === 伴手禮 / 記帳 ===
 function addPhotoItem(type,btn){
   const sv=type==='souvenirs',pid=sv?'souvenir-photo':'expense-photo',files=(PICK[pid]||[]).slice();
   const text1=$(sv?'souvenir-name':'expense-amount').value.trim();
   const text2=sv?'':$('expense-desc').value.trim();
   if(!text1){alert(sv?'請輸入伴手禮名稱或對象':'請輸入花費金額');return}
+  let cur='TWD',rate=1;
+  if(!sv){
+    cur=$('expense-cur').value;
+    if(cur!=='TWD'){
+      rate=Number($('expense-rate').value);
+      if(!(rate>0)){alert('請輸入匯率（1 '+cur+' ＝ 幾元台幣）');return $('expense-rate').focus()}
+      const m=jget('travel__rates',{});m[cur]=rate;jset('travel__rates',m);
+    }
+  }
   const docs=sv?[]:(PICK['expense-file']||[]).slice();
   const label=btn.textContent;btn.textContent='處理中…';btn.disabled=true;
   const save=(images,fl)=>{
     const d=Store.get(type);
     const item={id:Date.now(),text1,text2,images,
       date:new Date().toLocaleString('zh-TW',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})};
-    if(!sv)item.files=fl||[];
+    if(!sv){item.files=fl||[];item.cur=cur;item.rate=rate}
     d.unshift(item);
     if(Store.set(type,d)){
       $(sv?'souvenir-name':'expense-amount').value='';
-      if(!sv){$('expense-desc').value='';pickerClear('expense-file')}
+      if(!sv){$('expense-desc').value='';pickerClear('expense-file');fxPreview()}
       pickerClear(pid);
     }
     btn.textContent=label;btn.disabled=false;render();
@@ -794,7 +849,7 @@ function savePlace(){
 const EDIT={
   checklist:{title:'編輯準備項目',f:[['text','項目名稱','text']]},
   souvenirs:{title:'編輯伴手禮',f:[['text1','對象 / 物品名稱','text']],photo:[600,.6]},
-  expenses:{title:'編輯花費',f:[['text1','花費金額','number'],['text2','項目說明','text']],photo:[600,.6],files:true},
+  expenses:{title:'編輯花費',f:[['text1','花費金額','number'],['cur','幣別','cur'],['rate','匯率（1 單位外幣 ＝ 幾元台幣；台幣填 1）','number'],['text2','項目說明','text']],photo:[600,.6],files:true},
   tickets:{title:'編輯票券',f:[['text1','票券名稱','text'],['date','使用日期（選填）','date'],['note','備註（選填）','text']],photo:[1000,.8],files:true},
   spots:{title:'編輯景點',f:[['name','景點名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','text']]},
   food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text']]},
@@ -819,6 +874,7 @@ function editItem(type,id){
   $('ed-body').innerHTML=cfg.f.map(([k,label,t])=>{
     const tz=i.remindTz||DEV_TZ,val=k==='remind'?toZonedInput(i.remind,tz):(i[k]??'');
     if(t==='select')return `<label class="f">${label}<select data-k="${k}"></select></label>`;
+    if(t==='cur')return `<label class="f">${label}<select data-k="${k}" onchange="edCurChange(this)"></select></label>`;
     return t==='textarea'
       ?`<label class="f">${label}<textarea data-k="${k}">${esc(val)}</textarea></label>`
       :`<label class="f">${label}<input type="${t}" data-k="${k}" ${t==='number'?'inputmode="decimal"':''} ${k==='country'?'list="countries"':''} value="${esc(val)}"></label>`;
@@ -829,12 +885,20 @@ function editItem(type,id){
       <label class="pick"><i data-ic="note"></i><span>加入文件（選填）</span><input type="file" id="ed-file" data-kind="file" multiple></label><div class="pv" id="ed-file-pv"></div>`:'');
   $('ed-body').querySelectorAll('[data-ic]').forEach(e=>e.innerHTML=ic(e.dataset.ic));
   editImgs=(i.images||[]).slice();editFiles=(i.files||[]).slice();
+  const curSel=$('ed-body').querySelector('select[data-k=cur]');
+  if(curSel)curOptions(curSel,i.cur||'TWD');
+  const rateIn=$('ed-body').querySelector('input[data-k=rate]');
+  if(rateIn)rateIn.value=(i.cur&&i.cur!=='TWD')?rateOf(i):1;
   const tzSel=$('ed-body').querySelector('select[data-k=remindTz]');
   if(tzSel)tzOptions(tzSel,i.remindTz);
   if(cfg.photo){pickerInit('ed-photo');edCur()}
   if(cfg.files){pickerInit('ed-file');edFileCur()}
   $('ed-body').querySelectorAll('input[type=text],input[type=number],input[type=date]').forEach(el=>el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();saveEdit()}});
   $('ed').showModal();
+}
+function edCurChange(sel){
+  const r=$('ed-body').querySelector('input[data-k=rate]');
+  if(r)r.value=rateDef(sel.value);
 }
 function saveEdit(){
   if(!editing)return;
@@ -847,6 +911,11 @@ function saveEdit(){
   }else{
     const first=cfg.f[0][0];
     if(!v[first]){alert('「'+cfg.f[0][1]+'」不能空白');return $('ed-body').querySelector('[data-k]').focus()}
+  }
+  if(type==='expenses'){
+    v.rate=v.cur==='TWD'?1:Number(v.rate);
+    if(!(v.rate>0)){alert('請輸入匯率（1 單位外幣 ＝ 幾元台幣）');return $('ed-body').querySelector('input[data-k=rate]').focus()}
+    if(v.cur!=='TWD'){const m=jget('travel__rates',{});m[v.cur]=v.rate;jset('travel__rates',m)}
   }
   if(type==='notes'){
     v.remindTz=v.remind?(v.remindTz||DEV_TZ):'';
@@ -900,14 +969,14 @@ function render(){
       <div class="cap"><div><b>${esc(i.text1)}</b><small>${esc(i.date)}</small></div>${acts('souvenirs',i.id)}</div>
     </div>`).join('')}</div>`:empty('記下要買給誰、買了什麼，還能附上照片。');
 
-  const ex=Store.get('expenses'),total=ex.reduce((s,i)=>s+(Number(i.text1)||0),0);
-  $('st-total').textContent='$'+total.toLocaleString();
+  const ex=Store.get('expenses'),total=ex.reduce((s,i)=>s+twdOf(i),0),hasFx=ex.some(i=>i.cur&&i.cur!=='TWD');
+  $('st-total').textContent=fmtTwd(total);
   $('expenses-items').innerHTML=ex.length?`<div class="sheet">${ex.map(i=>`
     <div class="row">
-      <span class="amt">$${esc(Number(i.text1).toLocaleString())}</span>
+      <span class="amt">${(!i.cur||i.cur==='TWD')?'NT$'+esc(fmtN(i.text1)):esc(curSym(i.cur))+esc(fmtN(i.text1))+`<small>約 ${fmtTwd(twdOf(i))}</small>`}</span>
       <div class="t">${esc(i.text2||'未填說明')}<small>${esc(i.date)}</small>${(i.images||[]).length?`<span class="ths">${i.images.map(x=>`<img class="thumb" src="${x}" alt="收據" onclick="zoom(this.src)">`).join('')}</span>`:''}${(i.files||[]).length?`<div class="flw">${fileRows('expenses',i)}</div>`:''}</div>
       ${acts('expenses',i.id)}
-    </div>`).join('')}</div>`:empty('每花一筆就記一筆，累計金額會顯示在最上方。');
+    </div>`).join('')}</div>${hasFx?'<p class="hint" style="margin:8px 4px">外幣依記帳當下輸入的匯率換算成台幣，累計為約略金額。</p>':''}`:empty('每花一筆就記一筆，累計金額會顯示在最上方。');
 
   const tk=Store.get('tickets');
   $('tickets-items').innerHTML=tk.length?tk.map(i=>`
