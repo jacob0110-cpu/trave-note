@@ -129,6 +129,13 @@ details.place{background:var(--paper);border-radius:var(--r);margin-bottom:10px;
 details.place summary{list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;font-weight:600}
 details.place summary::-webkit-details-marker{display:none}
 details.place summary b{flex:1;overflow-wrap:anywhere}
+details.place{border-left:6px solid var(--cc,transparent)}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.legend:empty{display:none}
+.lg{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:.88rem;font-weight:600;color:var(--ink);background:var(--paper);border:1.5px solid var(--line);border-radius:999px;padding:6px 14px 6px 10px;min-height:40px;cursor:pointer}
+.lg i{width:14px;height:14px;border-radius:50%;flex:none}
+.lg[aria-pressed=true]{border-color:var(--ink)}
+.cdot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:baseline}
 details.place summary .pth{width:46px;height:46px;border-radius:10px;object-fit:cover;flex:none}
 details.place summary svg:first-child{color:var(--brand)}
 .chev{transition:transform .2s;color:var(--muted)}
@@ -1051,6 +1058,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <button type="button" class="fxb" onclick="placeBackup('spots')">備份檔</button>
       <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'spots');this.value=''"></label>
     </div>
+    <div class="legend" id="spots-legend"></div>
     <div class="two filt" id="spots-filter"></div>
     <div id="spots-items"></div>
   </section>
@@ -1076,6 +1084,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <button type="button" class="fxb" onclick="placeBackup('food')">備份檔</button>
       <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'food');this.value=''"></label>
     </div>
+    <div class="legend" id="food-legend"></div>
     <div class="two filt" id="food-filter"></div>
     <div id="food-items"></div>
   </section>
@@ -1866,6 +1875,15 @@ function staysShare(){
   else copyText(text);
 }
 
+const CPAL=['#2F6DB5','#0E8A6A','#C77D0A','#B3402F','#7A4F9E','#C2457F','#4F7F2F','#1C8CA8','#8A6D3B','#E0603A'];
+const CFIX={'挪威':0,'芬蘭':1,'德國':2};
+function countryColor(c){
+  c=(c||'').trim();if(!c)return '#8A99A0';
+  if(c in CFIX)return CPAL[CFIX[c]];
+  let h=0;for(const ch of c)h=(h*31+ch.charCodeAt(0))>>>0;
+  return CPAL[3+h%(CPAL.length-3)];
+}
+function legendPick(type,v){FILT[type].c=FILT[type].c===v?'':v;FILT[type].r='';render()}
 const noteShort=n=>{const l=String(n).split('\n')[0];return l.length>22?l.slice(0,22)+'…':l+(String(n).includes('\n')?'…':'')};
 const noteLong=n=>!!n&&(String(n).includes('\n')||String(n).length>22);
 const FILT={spots:{c:'',r:''},food:{c:'',r:''},transit:{c:'',r:''}};
@@ -1917,20 +1935,24 @@ function render(){
   [['spots','pin','景點'],['food','utensils','餐廳']].forEach(([type,icon,name])=>{
     const all=Store.get(type),F=FILT[type],NONE='__none';
     const cOf=i=>(i.country||'').trim(),rOf=i=>(i.region||'').trim();
-    const countries=[...new Set(all.map(cOf))].sort((a,b)=>a.localeCompare(b,'zh-TW'));
+    const countries=[...new Set(all.map(cOf))].sort((a,b)=>(a===''?1:0)-(b===''?1:0)||a.localeCompare(b,'zh-TW'));
     if(F.c&&!countries.includes(F.c==='__none'?'':F.c))F.c='';
     const pool=all.filter(i=>!F.c||cOf(i)===(F.c===NONE?'':F.c));
     const regions=[...new Set(pool.map(rOf))].sort((a,b)=>a.localeCompare(b,'zh-TW'));
     if(F.r&&!regions.includes(F.r==='__none'?'':F.r))F.r='';
     const items=pool.filter(i=>!F.r||rOf(i)===(F.r===NONE?'':F.r));
     const opt=(v,sel,cnt)=>`<option value="${v===''?NONE:esc(v)}" ${sel?'selected':''}>${v===''?'（未填）':esc(v)}（${cnt}）</option>`;
+    $(type+'-legend').innerHTML=all.length?countries.map(c=>{
+      const v=c===''?NONE:c;
+      return `<button type="button" class="lg" aria-pressed="${F.c===v}" data-v="${esc(v)}" onclick="legendPick('${type}',this.dataset.v)"><i style="background:${countryColor(c)}"></i>${c===''?'未填國家':esc(c)}（${all.filter(i=>cOf(i)===c).length}）</button>`;
+    }).join(''):'';
     $(type+'-filter').innerHTML=all.length>1?`
       <label>國家<select onchange="setFilt('${type}','c',this.value)"><option value="">全部國家（${all.length}）</option>${countries.map(c=>opt(c,(F.c===NONE?'':F.c)===c&&!!F.c,all.filter(i=>cOf(i)===c).length)).join('')}</select></label>
       <label>區域<select onchange="setFilt('${type}','r',this.value)"><option value="">全部區域（${pool.length}）</option>${regions.map(r=>opt(r,(F.r===NONE?'':F.r)===r&&!!F.r,pool.filter(i=>rOf(i)===r).length)).join('')}</select></label>
       ${(F.c||F.r)?`<p class="fcount">顯示 ${items.length} / ${all.length} 筆 · <a href="#" onclick="setFilt('${type}','c','');return false">清除篩選</a></p>`:''}`:'';
     $(type+'-items').innerHTML=all.length&&!items.length?empty('沒有符合的項目，請改選其他國家或區域。'):items.length?items.map(i=>`
-      <details class="place" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
-        <summary>${(i.images||[]).length?`<img class="pth" src="${i.images[0]}" alt="">`:ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
+      <details class="place" style="--cc:${countryColor(cOf(i))}" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
+        <summary>${(i.images||[]).length?`<img class="pth" src="${i.images[0]}" alt="">`:ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small><span class="cdot" style="background:${countryColor(cOf(i))}"></span>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
         <div class="pbody">${(i.images||[]).length?`<div class="pstrip">${i.images.map(x=>`<img src="${x}" alt="${esc(i.name)}" onclick="zoom(this.src)">`).join('')}</div>`:''}${i.address?`<p class="addr">${esc(i.address)}</p>`:''}${noteLong(i.note)?`<p class="pnote">${esc(i.note)}</p>`:''}<div class="map"></div>
           <div class="plinks">
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}用 Google 地圖開啟</a>
