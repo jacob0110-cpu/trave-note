@@ -275,6 +275,11 @@ main section{margin-bottom:20px}
       <div class="pv" id="souvenir-photo-pv"></div>
       <button class="btn" onclick="addPhotoItem('souvenirs',this)">儲存伴手禮</button>
     </div>
+    <div class="pshare">
+      <button type="button" class="fxb" onclick="souvenirsShare()">分享清單</button>
+      <button type="button" class="fxb" onclick="placeBackup('souvenirs')">備份檔（含照片）</button>
+      <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'souvenirs');this.value=''"></label>
+    </div>
     <div id="souvenirs-items"></div>
   </section>
 
@@ -1015,7 +1020,17 @@ let vwUrl=null;
 function viewOpen(o){
   const dlg=$('lb'),body=$('vw-body'),act=$('vw-act');
   body.innerHTML='';act.hidden=true;act.onclick=null;$('vw-title').textContent=o.title||'';
-  if(o.img){const im=new Image();im.alt=o.title||'照片';im.src=o.img;body.appendChild(im)}
+  if(o.img){
+    const im=new Image();im.alt=o.title||'照片';im.src=o.img;body.appendChild(im);
+    act.hidden=false;act.textContent=navigator.canShare?'分享照片':'下載照片';
+    act.onclick=async()=>{
+      try{
+        const b=await (await fetch(o.img)).blob(),name='photo-'+Date.now()+'.'+((b.type.split('/')[1]||'jpg').replace('jpeg','jpg')),f=new File([b],name,{type:b.type});
+        if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f]});
+        else{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+      }catch(e){}
+    };
+  }
   else if(o.blob){
     const b=o.blob,name=o.title||'檔案';vwUrl=URL.createObjectURL(b);
     const share=()=>{
@@ -1076,6 +1091,13 @@ function renderStays(){
         </div>
       </div>
     </details>`}).join(''):empty('尚無住宿資料。請按上方「匯入」載入住宿檔案；載入後可以點開每一筆，按「編輯」補充備註。');
+}
+function souvenirsShare(){
+  const list=Store.get('souvenirs').sort((a,b)=>a.id-b.id);
+  if(!list.length){alert('目前沒有伴手禮資料可以分享。');return}
+  const text=`伴手禮清單　共 ${list.length} 筆\n\n`+list.map((i,n)=>`${n+1}. ${i.text1}${(i.images||[]).length?`（${i.images.length} 張照片）`:''}`).join('\n');
+  if(navigator.share)navigator.share({title:'伴手禮清單',text}).catch(e=>{if(e&&e.name!=='AbortError')prompt('請全選並複製這段文字：',text)});
+  else copyText(text);
 }
 function staysShare(){
   const list=staysSorted();if(!list.length){alert('目前沒有住宿資料可以分享。');return}
@@ -1162,7 +1184,7 @@ function render(){
 }
 
 // === 景點／餐廳：分享清單與備份檔 ===
-const PNAME={spots:'必逛景點',food:'必吃餐廳',stays:'住宿'};
+const PNAME={spots:'必逛景點',food:'必吃餐廳',stays:'住宿',souvenirs:'伴手禮'};
 function placeView(type){
   const F=FILT[type],NONE='__none';
   return Store.get(type).filter(i=>(!F.c||(i.country||'').trim()===(F.c===NONE?'':F.c))&&(!F.r||(i.region||'').trim()===(F.r===NONE?'':F.r)));
