@@ -1112,6 +1112,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <button type="button" class="fxb" onclick="placeBackup('transit')">備份檔</button>
       <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'transit');this.value=''"></label>
     </div>
+    <div class="legend" id="transit-legend"></div>
     <div id="transit-items"></div>
   </section>
 </main>
@@ -2142,9 +2143,18 @@ function mapShow(){
 
 // === 交通地點（車站、機場、碼頭、租車…）===
 function renderTransit(){
-  const list=Store.get('transit');
-  $('transit-items').innerHTML=list.length?list.map(i=>`<details class="place">
-    <summary>${ic('train')}<b>${esc(i.name)}<small>${esc(loc(i))}</small></b><span class="chev">${ic('down')}</span></summary>
+  const all=Store.get('transit'),F=FILT.transit,NONE='__none',cOf=i=>(i.country||'').trim(),rOf=i=>(i.region||'').trim();
+  const countries=[...new Set(all.map(cOf))].sort(cmpC);
+  if(F.c&&!countries.includes(F.c===NONE?'':F.c))F.c='';
+  $('transit-legend').innerHTML=all.length?countries.map(c=>{
+    const v=c===''?NONE:c;
+    return `<button type="button" class="lg" aria-pressed="${F.c===v}" data-v="${esc(v)}" onclick="legendPick('transit',this.dataset.v)"><i style="background:${countryColor(c)}"></i>${c===''?'未填國家':esc(c)}（${all.filter(i=>cOf(i)===c).length}）</button>`;
+  }).join(''):'';
+  const items=all.filter(i=>!F.c||cOf(i)===(F.c===NONE?'':F.c)).sort((a,b)=>cmpC(cOf(a),cOf(b))||rOf(a).localeCompare(rOf(b),'zh-TW'));
+  const grp=new Set(items.map(cOf)).size>1;
+  const head=(i,n)=>grp&&(n===0||cOf(items[n-1])!==cOf(i))?`<div class="ghead" style="--cc:${countryColor(cOf(i))}"><i></i>${esc(cOf(i)||'未填國家')}（${items.filter(x=>cOf(x)===cOf(i)).length}）</div>`:'';
+  $('transit-items').innerHTML=items.length?items.map((i,n)=>head(i,n)+`<details class="place" style="--cc:${countryColor(cOf(i))}">
+    <summary>${ic('train')}<b>${esc(i.name)}${loc(i)?`<small><span class="cdot" style="background:${countryColor(cOf(i))}"></span>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
     <div class="pbody">
       ${i.address?`<p class="addr">${esc(i.address)}</p>`:''}
       ${i.note?`<p class="pnote">${esc(i.note)}</p>`:''}
@@ -2152,7 +2162,7 @@ function renderTransit(){
         <span style="display:flex;gap:14px;flex-wrap:wrap"><button onclick="mapFocus('transit',${i.id})">${ic('pin')}在地圖上顯示</button><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}地圖</a></span>
         <span style="display:flex;gap:14px"><button class="ed" onclick="editItem('transit',${i.id})">${ic('edit')}編輯</button><button onclick="deleteItem('transit',${i.id})">${ic('trash')}刪除</button></span>
       </div>
-    </div></details>`).join(''):empty('用上方搜尋找到車站、機場、碼頭或租車點，再按「加入交通」，就會存在這裡並標示在地圖上。');
+    </div></details>`).join(''):all.length?empty('沒有符合的項目，請點上方國家取消篩選。'):empty('用上方搜尋找到車站、機場、碼頭或租車點，再按「加入交通」，就會存在這裡並標示在地圖上。');
 }
 function mapFocus(t,id){
   const i=Store.get(t).find(x=>x.id===id);
