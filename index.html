@@ -201,6 +201,7 @@ details.more .morebody{display:grid;gap:12px;padding-bottom:14px}
 .cfl{display:grid;grid-template-columns:4rem 1fr;gap:8px 10px;margin-bottom:18px}
 .cfl dt{color:var(--muted);font-size:.9rem}.cfl dd{font-weight:600;overflow-wrap:anywhere}
 .cfl dd.none{color:var(--muted);font-weight:400}
+details.place .pnote{white-space:pre-wrap;background:var(--soft);border-radius:10px;padding:10px 12px;margin:0 0 10px;font-size:.92rem;overflow-wrap:anywhere}
 details.place summary .pn{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:8px}
 details.place summary small{display:block;color:var(--muted);font-weight:400;font-size:.8rem}
 .plinks .ed{color:var(--brand);display:inline-flex;gap:6px;align-items:center}
@@ -366,6 +367,7 @@ main section{margin-bottom:20px}
         <label class="f">區域<input type="text" id="food-region" placeholder="自動帶入"></label>
       </div>
       <label class="f">地址<input type="text" id="food-address" placeholder="自動帶入，可自行修改"></label>
+      <label class="f">備註（選填）<textarea id="food-note" placeholder="例如：招牌菜、需預約、營業時間、人均價位，想補充的內容都可以寫"></textarea></label>
       <button class="btn" onclick="askPlace('food')">確認資料</button>
     </div>
     <div class="pshare">
@@ -920,7 +922,7 @@ const EDIT={
   tickets:{title:'編輯票券',f:[['text1','票券名稱','text'],['date','使用日期（選填）','date'],['note','備註（選填）','text']],photo:[1000,.8],files:true},
   stays:{title:'編輯住宿',f:[['name','飯店／公寓名稱','text'],['checkin','入住日期','date'],['checkout','退房日期','date'],['city','城市／國家','text'],['address','地址','text'],['room','房型','text'],['price','價格（台幣）','number'],['code','訂單／確認碼','text'],['pay','付款方式','text'],['cancel','免費取消截止','text'],['url','飯店網頁／訂房頁','text'],['note','備註','textarea']]},
   spots:{title:'編輯景點',f:[['name','景點名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','text']]},
-  food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text']]},
+  food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','textarea']]},
   notes:{title:'編輯筆記',f:[['title','標題（選填）','text'],['text','內容','textarea'],['remind','提醒時間（選填，清空即取消提醒）','datetime-local'],['remindTz','提醒時區','select']],photo:[1000,.8],files:true,any:true}
 };
 let editing=null,editImgs=[],editFiles=[];
@@ -1109,6 +1111,8 @@ function staysShare(){
   else copyText(text);
 }
 
+const noteShort=n=>{const l=String(n).split('\n')[0];return l.length>22?l.slice(0,22)+'…':l+(String(n).includes('\n')?'…':'')};
+const noteLong=n=>!!n&&(String(n).includes('\n')||String(n).length>22);
 const FILT={spots:{c:'',r:''},food:{c:'',r:''}};
 function setFilt(type,k,v){FILT[type][k]=v;if(k==='c')FILT[type].r='';render()}
 function render(){
@@ -1170,8 +1174,8 @@ function render(){
       ${(F.c||F.r)?`<p class="fcount">顯示 ${items.length} / ${all.length} 筆 · <a href="#" onclick="setFilt('${type}','c','');return false">清除篩選</a></p>`:''}`:'';
     $(type+'-items').innerHTML=all.length&&!items.length?empty('沒有符合的項目，請改選其他國家或區域。'):items.length?items.map(i=>`
       <details class="place" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
-        <summary>${ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(i.note)}</span>`:''}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
-        <div class="pbody">${i.address?`<p class="addr">${esc(i.address)}</p>`:''}<div class="map"></div>
+        <summary>${ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
+        <div class="pbody">${i.address?`<p class="addr">${esc(i.address)}</p>`:''}${noteLong(i.note)?`<p class="pnote">${esc(i.note)}</p>`:''}<div class="map"></div>
           <div class="plinks">
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}用 Google 地圖開啟</a>
             <button class="ed" onclick="editItem('${type}',${i.id})">${ic('edit')}編輯</button>
@@ -1194,7 +1198,7 @@ async function placeShare(type){
   if(!list.length){alert('目前沒有可以分享的項目。');return}
   const F=FILT[type],scope=[F.c,F.r].filter(Boolean).map(x=>x==='__none'?'未填':x).join(' · ');
   const title=`${PNAME[type]}${scope?'（'+scope+'）':''}　共 ${list.length} 筆`;
-  const text=title+'\n\n'+list.map((i,n)=>`${n+1}. ${i.name}${i.note?'（'+i.note+'）':''}\n   ${[loc(i),i.address].filter(Boolean).join(' ｜ ')}\n   https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}`).join('\n\n');
+  const text=title+'\n\n'+list.map((i,n)=>`${n+1}. ${i.name}\n   ${[loc(i),i.address].filter(Boolean).join(' ｜ ')}${i.note?'\n   備註：'+String(i.note).replace(/\n/g,'\n   '):''}\n   https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}`).join('\n\n');
   try{
     if(navigator.share){await navigator.share({title,text});return}
     await navigator.clipboard.writeText(text);alert('已複製清單，可以貼到 LINE 或其他 App。');
