@@ -1083,6 +1083,13 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <button type="button" class="fxb" onclick="mapDraw(true)">顯示全部地點</button>
       <button type="button" class="fxb" onclick="mapGeocode(true)">重新定位</button>
     </div>
+    <h2 style="margin-top:22px;display:flex;align-items:center;gap:8px"><span class="pp-i" style="background:#2F6DB5;width:28px;height:28px;margin:0"><i data-ic="train"></i></span>交通地點</h2>
+    <div class="pshare">
+      <button type="button" class="fxb" onclick="placeShare('transit')">分享清單</button>
+      <button type="button" class="fxb" onclick="placeBackup('transit')">備份檔</button>
+      <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'transit');this.value=''"></label>
+    </div>
+    <div id="transit-items"></div>
   </section>
 </main>
 
@@ -1166,6 +1173,7 @@ const ICONS={
   pin:'<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   utensils:'<path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 21V3c-3 2-4 5-4 8h4"/>',
   ticket:'<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4zM14 7v10"/>',
+  train:'<path d="M7 3h10a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V5a2 2 0 0 1 2-2zM5 10h14M9 21l2-4M15 21l-2-4M8.5 13.5h.01M15.5 13.5h.01"/>',
   map:'<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/>',
   bed:'<path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-8v6M6.5 12a1.5 1.5 0 1 0 .01 0"/>',
   edit:'<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
@@ -1189,7 +1197,7 @@ const norm=i=>{
 };
 const sig=x=>JSON.stringify(Object.assign({},x,{u:0}));
 // --- IndexedDB 底層 ---
-const MEM={},STORE_KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes','stays'];
+const MEM={},STORE_KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes','stays','transit'];
 let IDB=null,idbChain=Promise.resolve(),idbWarned=false;
 function idbOpen(){
   return new Promise(res=>{
@@ -1642,6 +1650,7 @@ const EDIT={
   souvenirs:{title:'編輯伴手禮',f:[['text1','對象 / 物品名稱','text']],photo:[600,.6]},
   expenses:{title:'編輯花費',f:[['text1','花費金額','number'],['day','消費日期','date'],['cur','幣別','cur'],['rate','匯率（1 單位外幣 ＝ 幾元台幣；台幣填 1）','number'],['text2','項目說明','text']],photo:[600,.6],files:true},
   tickets:{title:'編輯票券',f:[['text1','票券名稱','text'],['date','使用日期（選填）','date'],['note','備註（選填）','text']],photo:[1000,.8],files:true},
+  transit:{title:'編輯交通地點',f:[['name','名稱（車站、機場、碼頭…）','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（班次、轉乘、票價…）','textarea']]},
   stays:{title:'編輯住宿',f:[['name','飯店／公寓名稱','text'],['checkin','入住日期','date'],['checkout','退房日期','date'],['city','城市／國家','text'],['address','地址','text'],['room','房型','text'],['price','價格（台幣）','number'],['code','訂單／確認碼','text'],['pay','付款方式','text'],['cancel','免費取消截止','text'],['url','飯店網頁／訂房頁','text'],['note','備註','textarea']]},
   spots:{title:'編輯景點',f:[['name','景點名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','text']]},
   food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','textarea']]},
@@ -1707,7 +1716,7 @@ function saveEdit(){
     if(!v[first]){alert('「'+cfg.f[0][1]+'」不能空白');return $('ed-body').querySelector('[data-k]').focus()}
   }
   if(type==='stays'&&v.checkin&&v.checkout&&v.checkout<v.checkin){alert('退房日期不能早於入住日期');return}
-  if(type==='spots'||type==='food'||type==='stays'){
+  if(type==='spots'||type==='food'||type==='stays'||type==='transit'){
     const ks=type==='stays'?['name','city','address']:['name','country','region','address'];
     if(ks.some(k=>(v[k]||'')!==(i[k]||''))){delete i.lat;delete i.lng;delete i.geoApprox;const f=jget('travel__geofail',{});delete f[type+'_'+i.id];jset('travel__geofail',f)}
   }
@@ -1839,7 +1848,7 @@ function staysShare(){
 
 const noteShort=n=>{const l=String(n).split('\n')[0];return l.length>22?l.slice(0,22)+'…':l+(String(n).includes('\n')?'…':'')};
 const noteLong=n=>!!n&&(String(n).includes('\n')||String(n).length>22);
-const FILT={spots:{c:'',r:''},food:{c:'',r:''}};
+const FILT={spots:{c:'',r:''},food:{c:'',r:''},transit:{c:'',r:''}};
 function setFilt(type,k,v){FILT[type][k]=v;if(k==='c')FILT[type].r='';render()}
 function render(){
   const cl=Store.get('checklist'),done=cl.filter(i=>i.checked).length;
@@ -1880,7 +1889,7 @@ function render(){
       ${(i.files||[]).length?`<div class="flw tkf">${fileRows('tickets',i)}</div>`:''}
     </div>`).join(''):empty('把車票、通行證或 QR Code 拍下來，搭車時直接翻出來用。');
 
-  renderStays();
+  renderStays();renderTransit();
   const nt=Store.get('notes');
   $('notes-items').innerHTML=nt.length?nt.map(noteCard).join(''):empty('記下重要的事、拍下文件，還能設定提醒時間。');
 
@@ -1915,7 +1924,7 @@ function render(){
 }
 
 // === 行程地圖（Leaflet 地形圖，已內嵌在檔案裡）===
-const MAPT={spots:{label:'景點',ic:'pin',color:'#0E6A73'},stays:{label:'住宿',ic:'bed',color:'#C77D0A'},food:{label:'餐廳',ic:'utensils',color:'#B3402F'}};
+const MAPT={spots:{label:'景點',ic:'pin',color:'#0E6A73'},stays:{label:'住宿',ic:'bed',color:'#C77D0A'},food:{label:'餐廳',ic:'utensils',color:'#B3402F'},transit:{label:'交通',ic:'train',color:'#2F6DB5'}};
 const MAPL=[
   {k:'topo',label:'地形',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',o:{maxZoom:17,subdomains:'abc',attribution:'© OpenStreetMap 貢獻者, SRTM | 樣式 © OpenTopoMap (CC-BY-SA)'}},
   {k:'street',label:'街道',url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',o:{maxZoom:19,attribution:'© OpenStreetMap 貢獻者'}},
@@ -1923,7 +1932,7 @@ const MAPL=[
   {k:'sat',label:'衛星',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',o:{maxZoom:19,attribution:'圖磚 © Esri, Maxar, Earthstar Geographics'}}
 ];
 const mapSym=t=>ic(MAPT[t].ic);
-const mapOn={spots:true,stays:true,food:true};
+const mapOn={spots:true,stays:true,food:true,transit:true};
 let LMARKS={},LFIND=null,MRES=[],MFOUND=null,LMAP=null,LBASE=null,LGROUP=null,mapLayer=jget('travel__maplayer','topo'),geoBusy=false,geoLast=0,tileErr=0;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function geoQueries(t,i){
@@ -2044,7 +2053,7 @@ function mapPick(k,quiet){
   const p=r.p;MFOUND=p;
   LFIND=L.marker([p.lat,p.lng],{title:p.name,zIndexOffset:1000,icon:L.divIcon({className:'',html:`<div class="mk" style="background:${FINDC}">${ic('pin')}</div>`,iconSize:[32,32],iconAnchor:[16,16],popupAnchor:[0,-18]})}).addTo(LMAP);
   LFIND.bindPopup(`<b>${esc(p.name)}</b><div class="pp-s">${esc([p.region,p.country].filter(Boolean).join('，'))}</div>${p.address?`<div class="pp-s">${esc(p.address)}</div>`:''}
-    <div><button type="button" class="pp-b" onclick="mapAddFound('spots')">加入景點</button><button type="button" class="pp-b" style="background:#B3402F" onclick="mapAddFound('food')">加入餐廳</button></div>
+    <div><button type="button" class="pp-b" onclick="mapAddFound('spots')">加入景點</button><button type="button" class="pp-b" style="background:#B3402F" onclick="mapAddFound('food')">加入餐廳</button><button type="button" class="pp-b" style="background:#2F6DB5" onclick="mapAddFound('transit')">加入交通</button></div>
     <div style="margin-top:6px"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.name,p.region,p.country].filter(Boolean).join(' '))}" target="_blank" rel="noopener">用 Google 地圖開啟</a></div>`,{maxWidth:260});
   LMAP.setView([p.lat,p.lng],15);LFIND.openPopup();
 }
@@ -2079,8 +2088,30 @@ function mapShow(){
   mapChips();LMAP.invalidateSize();mapDraw(true);mapGeocode(false);
 }
 
+// === 交通地點（車站、機場、碼頭、租車…）===
+function renderTransit(){
+  const list=Store.get('transit');
+  $('transit-items').innerHTML=list.length?list.map(i=>`<details class="place">
+    <summary>${ic('train')}<b>${esc(i.name)}<small>${esc(loc(i))}</small></b><span class="chev">${ic('down')}</span></summary>
+    <div class="pbody">
+      ${i.address?`<p class="addr">${esc(i.address)}</p>`:''}
+      ${i.note?`<p class="pnote">${esc(i.note)}</p>`:''}
+      <div class="plinks">
+        <span style="display:flex;gap:14px;flex-wrap:wrap"><button onclick="mapFocus('transit',${i.id})">${ic('pin')}在地圖上顯示</button><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}地圖</a></span>
+        <span style="display:flex;gap:14px"><button class="ed" onclick="editItem('transit',${i.id})">${ic('edit')}編輯</button><button onclick="deleteItem('transit',${i.id})">${ic('trash')}刪除</button></span>
+      </div>
+    </div></details>`).join(''):empty('用上方搜尋找到車站、機場、碼頭或租車點，再按「加入交通」，就會存在這裡並標示在地圖上。');
+}
+function mapFocus(t,id){
+  const i=Store.get(t).find(x=>x.id===id);
+  if(!i||!LMAP||!(i.lat&&i.lng)){alert('這個地點還沒有定位到地圖上，請稍候或按「重新定位」。');return}
+  if(!mapOn[t]){mapOn[t]=true;mapChips();mapDraw()}
+  $('tmap').scrollIntoView({behavior:'smooth',block:'center'});
+  LMAP.setView([i.lat,i.lng],Math.max(LMAP.getZoom(),14));
+  const m=LMARKS[t+'_'+i.id];if(m)m.openPopup();
+}
 // === 景點／餐廳：分享清單與備份檔 ===
-const PNAME={spots:'必逛景點',food:'必吃餐廳',stays:'住宿',souvenirs:'伴手禮'};
+const PNAME={spots:'必逛景點',food:'必吃餐廳',stays:'住宿',souvenirs:'伴手禮',transit:'交通地點'};
 function placeView(type){
   const F=FILT[type],NONE='__none';
   return Store.get(type).filter(i=>(!F.c||(i.country||'').trim()===(F.c===NONE?'':F.c))&&(!F.r||(i.region||'').trim()===(F.r===NONE?'':F.r)));
@@ -2111,7 +2142,7 @@ async function placeBackup(type){
 }
 
 // === 備份 / 匯入 / 列印 ===
-const KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes','stays'];
+const KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes','stays','transit'];
 function exportData(){
   const data={};KEYS.forEach(k=>data[k]=Store.get(k));
   const blob=new Blob([JSON.stringify({app:'TravelNotebook',version:1,exported:new Date().toISOString(),data})],{type:'application/json'});
