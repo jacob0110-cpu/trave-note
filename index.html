@@ -159,6 +159,19 @@ input[type=date]{width:100%;padding:12px 14px;border:1.5px solid var(--line);bor
 dialog{border:0;padding:0;background:none;max-width:94vw;max-height:90vh}
 dialog::backdrop{background:rgba(0,0,0,.8)}
 dialog img{max-width:94vw;max-height:88vh;border-radius:12px;display:block}
+/* 全螢幕檢視器：照片、PDF、文字檔都在 App 內開啟，底部大按鈕一鍵返回 */
+#lb{width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;background:#111;color:#fff}
+#lb[open]{display:flex;flex-direction:column}
+#lb::backdrop{background:#000}
+#lb .vbody{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;touch-action:pan-x pan-y pinch-zoom;-webkit-overflow-scrolling:touch}
+#lb .vbody img{max-width:100%;max-height:100%;border-radius:0;object-fit:contain}
+#lb .vbody iframe{width:100%;height:100%;border:0;background:#fff}
+#lb .vbody pre{align-self:flex-start;width:100%;margin:0;padding:16px;white-space:pre-wrap;word-break:break-word;font:inherit;font-size:.95rem;background:#fff;color:#111;min-height:100%}
+#lb .vmsg{padding:24px;text-align:center;display:grid;gap:14px;justify-items:center}
+#lb .vbar{display:flex;align-items:center;gap:10px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#000}
+#lb .vt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem;opacity:.8}
+#lb button.vb{font:inherit;font-weight:700;color:#fff;background:rgba(255,255,255,.18);border:0;border-radius:999px;padding:10px 20px;min-height:48px;cursor:pointer}
+#lb button.vb.main{background:var(--brand);color:var(--on-brand)}
 #dm,#cf,#ed{background:var(--paper);color:var(--ink);border-radius:18px;padding:20px;width:min(92vw,24rem);margin:auto}
 #dm::backdrop,#cf::backdrop,#ed::backdrop{background:rgba(0,0,0,.6)}
 .hint{font-size:.85rem;color:var(--muted)}
@@ -372,7 +385,10 @@ main section{margin-bottom:20px}
   </div>
 </dialog>
 
-<dialog id="lb" onclick="this.close()"><img id="lb-img" alt="放大檢視"></dialog>
+<dialog id="lb" aria-label="檢視照片或文件">
+  <div class="vbody" id="vw-body" onclick="if(event.target===this)$('lb').close()"></div>
+  <div class="vbar"><button type="button" class="vb main" onclick="$('lb').close()">← 返回</button><span class="vt" id="vw-title"></span><button type="button" class="vb" id="vw-act" hidden></button></div>
+</dialog>
 
 <script>
 const ICONS={
@@ -566,10 +582,7 @@ function fileRows(type,n){
 }
 function openFile(type,id,i){
   const n=Store.get(type).find(x=>x.id===id),f=n&&(n.files||[])[i];if(!f)return;
-  const blob=dataToBlob(f.data,f.type),url=URL.createObjectURL(blob);
-  const dl=()=>{const a=document.createElement('a');a.href=url;a.download=f.name;document.body.appendChild(a);a.click();a.remove()};
-  if(/pdf|^text\/|^image\//.test(blob.type)){if(!window.open(url,'_blank'))dl()}else dl();
-  setTimeout(()=>URL.revokeObjectURL(url),60000);
+  viewOpen({blob:dataToBlob(f.data,f.type),title:f.name});
 }
 
 // === 生活小筆記 + 提醒 ===
@@ -954,7 +967,34 @@ function loadMap(el){
     box.innerHTML=`<iframe loading="lazy" title="${esc(el.dataset.name)} 地圖" src="https://www.google.com/maps?q=${encodeURIComponent(el.dataset.q)}&output=embed" allowfullscreen></iframe>`;
   }
 }
-function zoom(src){$('lb-img').src=src;$('lb').showModal()}
+// === 全螢幕檢視器 ===
+let vwUrl=null;
+function viewOpen(o){
+  const dlg=$('lb'),body=$('vw-body'),act=$('vw-act');
+  body.innerHTML='';act.hidden=true;act.onclick=null;$('vw-title').textContent=o.title||'';
+  if(o.img){const im=new Image();im.alt=o.title||'照片';im.src=o.img;body.appendChild(im)}
+  else if(o.blob){
+    const b=o.blob,name=o.title||'檔案';vwUrl=URL.createObjectURL(b);
+    const share=()=>{
+      const f=new File([b],name,{type:b.type||'application/octet-stream'});
+      if(navigator.canShare&&navigator.canShare({files:[f]}))navigator.share({files:[f],title:name}).catch(()=>{});
+      else{const a=document.createElement('a');a.href=vwUrl;a.download=name;document.body.appendChild(a);a.click();a.remove()}
+    };
+    act.hidden=false;act.textContent=(navigator.canShare?'分享／用其他 App 開啟':'下載');act.onclick=share;
+    if(/pdf/.test(b.type)){const fr=document.createElement('iframe');fr.src=vwUrl+'#view=FitH';fr.title=name;body.appendChild(fr)}
+    else if(/^image\//.test(b.type)){const im=new Image();im.alt=name;im.src=vwUrl;body.appendChild(im)}
+    else if(/^text\//.test(b.type)){const pre=document.createElement('pre');body.appendChild(pre);b.text().then(t=>pre.textContent=t)}
+    else{body.innerHTML=`<div class="vmsg"><div>這種檔案無法直接預覽。</div><div>${esc(name)}</div></div>`}
+  }
+  if(!dlg.open){dlg.showModal();try{history.pushState({vw:1},'')}catch(e){}}   // 手機的返回鍵／滑動返回，也會先關閉檢視器
+}
+$('lb').addEventListener('close',()=>{
+  $('vw-body').innerHTML='';
+  if(vwUrl){URL.revokeObjectURL(vwUrl);vwUrl=null}
+  if(history.state&&history.state.vw)history.back();
+});
+window.addEventListener('popstate',()=>{if($('lb').open)$('lb').close()});
+function zoom(src){viewOpen({img:src,title:'照片'})}
 
 // === 畫面 ===
 const empty=t=>`<div class="empty">${t}</div>`;
