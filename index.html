@@ -175,6 +175,12 @@ dialog img{max-width:94vw;max-height:88vh;border-radius:12px;display:block}
 #dm,#cf,#ed{background:var(--paper);color:var(--ink);border-radius:18px;padding:20px;width:min(92vw,24rem);margin:auto}
 #dm::backdrop,#cf::backdrop,#ed::backdrop{background:rgba(0,0,0,.6)}
 .hint{font-size:.85rem;color:var(--muted)}
+.fxb{margin-top:8px;font:inherit;font-weight:600;font-size:.9rem;color:var(--brand);background:var(--soft);border:0;border-radius:999px;padding:8px 16px;min-height:40px}
+.filt{margin:0 0 12px}
+.filt:empty{display:none}
+.filt label{font-size:.8rem;font-weight:600;color:var(--muted);display:grid;gap:4px}
+.filt select{min-height:44px;padding:8px 12px}
+.fcount{grid-column:1/-1;font-size:.82rem;color:var(--muted);margin:0}
 .hint:empty,.cands:empty{display:none}
 .cands{display:grid;gap:6px}
 .cand{text-align:left;padding:8px 12px;border:1.5px solid var(--line);border-radius:12px;width:100%;line-height:1.35}
@@ -272,7 +278,7 @@ main section{margin-bottom:20px}
       </div>
       <div id="expense-fx" hidden>
         <label class="f">匯率（1 <span id="expense-fxname"></span> ＝ 幾元台幣）<input type="number" id="expense-rate" inputmode="decimal" step="any" oninput="fxPreview()"></label>
-        <button type="button" class="chip" style="margin-top:8px" onclick="fxUpdate(this)">取得最新匯率</button>
+        <button type="button" class="fxb" onclick="fxUpdate(this)">取得最新匯率</button>
       </div>
       <p class="hint" id="expense-twd"></p>
       <label class="f">項目說明<input type="text" id="expense-desc" placeholder="例如：晚餐拉麵"></label>
@@ -314,6 +320,7 @@ main section{margin-bottom:20px}
       <label class="f">備註（選填）<input type="text" id="spots-note" placeholder="例如：需預約、週一休館、建議早上去"></label>
       <button class="btn" onclick="askPlace('spots')">確認資料</button>
     </div>
+    <div class="two filt" id="spots-filter"></div>
     <div id="spots-items"></div>
   </section>
 
@@ -330,6 +337,7 @@ main section{margin-bottom:20px}
       <label class="f">地址<input type="text" id="food-address" placeholder="自動帶入，可自行修改"></label>
       <button class="btn" onclick="askPlace('food')">確認資料</button>
     </div>
+    <div class="two filt" id="food-filter"></div>
     <div id="food-items"></div>
   </section>
 </main>
@@ -1002,6 +1010,8 @@ const editBtn=(type,id)=>`<button class="ed-b" aria-label="編輯" onclick="edit
 const acts=(type,id,pre='')=>`<span class="acts">${pre}${editBtn(type,id)}${delBtn(type,id)}</span>`;
 const delBtn=(type,id)=>`<button class="del" aria-label="刪除" onclick="deleteItem('${type}',${id})">${ic('trash')}</button>`;
 
+const FILT={spots:{c:'',r:''},food:{c:'',r:''}};
+function setFilt(type,k,v){FILT[type][k]=v;if(k==='c')FILT[type].r='';render()}
 function render(){
   const cl=Store.get('checklist'),done=cl.filter(i=>i.checked).length;
   $('checklist-items').innerHTML=cl.length?`<div class="sheet">${cl.map(i=>`
@@ -1045,8 +1055,20 @@ function render(){
   $('notes-items').innerHTML=nt.length?nt.map(noteCard).join(''):empty('記下重要的事、拍下文件，還能設定提醒時間。');
 
   [['spots','pin','景點'],['food','utensils','餐廳']].forEach(([type,icon,name])=>{
-    const items=Store.get(type);
-    $(type+'-items').innerHTML=items.length?items.map(i=>`
+    const all=Store.get(type),F=FILT[type],NONE='__none';
+    const cOf=i=>(i.country||'').trim(),rOf=i=>(i.region||'').trim();
+    const countries=[...new Set(all.map(cOf))].sort((a,b)=>a.localeCompare(b,'zh-TW'));
+    if(F.c&&!countries.includes(F.c==='__none'?'':F.c))F.c='';
+    const pool=all.filter(i=>!F.c||cOf(i)===(F.c===NONE?'':F.c));
+    const regions=[...new Set(pool.map(rOf))].sort((a,b)=>a.localeCompare(b,'zh-TW'));
+    if(F.r&&!regions.includes(F.r==='__none'?'':F.r))F.r='';
+    const items=pool.filter(i=>!F.r||rOf(i)===(F.r===NONE?'':F.r));
+    const opt=(v,sel,cnt)=>`<option value="${v===''?NONE:esc(v)}" ${sel?'selected':''}>${v===''?'（未填）':esc(v)}（${cnt}）</option>`;
+    $(type+'-filter').innerHTML=all.length>1?`
+      <label>國家<select onchange="setFilt('${type}','c',this.value)"><option value="">全部國家（${all.length}）</option>${countries.map(c=>opt(c,(F.c===NONE?'':F.c)===c&&!!F.c,all.filter(i=>cOf(i)===c).length)).join('')}</select></label>
+      <label>區域<select onchange="setFilt('${type}','r',this.value)"><option value="">全部區域（${pool.length}）</option>${regions.map(r=>opt(r,(F.r===NONE?'':F.r)===r&&!!F.r,pool.filter(i=>rOf(i)===r).length)).join('')}</select></label>
+      ${(F.c||F.r)?`<p class="fcount">顯示 ${items.length} / ${all.length} 筆 · <a href="#" onclick="setFilt('${type}','c','');return false">清除篩選</a></p>`:''}`:'';
+    $(type+'-items').innerHTML=all.length&&!items.length?empty('沒有符合的項目，請改選其他國家或區域。'):items.length?items.map(i=>`
       <details class="place" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
         <summary>${ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(i.note)}</span>`:''}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
         <div class="pbody">${i.address?`<p class="addr">${esc(i.address)}</p>`:''}<div class="map"></div>
