@@ -176,6 +176,14 @@ dialog img{max-width:94vw;max-height:88vh;border-radius:12px;display:block}
 #dm::backdrop,#cf::backdrop,#ed::backdrop{background:rgba(0,0,0,.6)}
 .hint{font-size:.85rem;color:var(--muted)}
 .fxb{margin-top:8px;font:inherit;font-weight:600;font-size:.9rem;color:var(--brand);background:var(--soft);border:0;border-radius:999px;padding:8px 16px;min-height:40px}
+details.more{border:1.5px dashed var(--line);border-radius:12px;padding:0 12px}
+details.more summary{cursor:pointer;font-weight:600;color:var(--brand);padding:12px 0;font-size:.92rem}
+details.more .morebody{display:grid;gap:12px;padding-bottom:14px}
+.kv{display:grid;grid-template-columns:5.5rem 1fr;gap:8px;font-size:.92rem;padding:6px 0;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.kv span:first-child{color:var(--muted)}
+.kv .note{white-space:pre-wrap}
+.kv button.cp{margin-left:8px;font:inherit;font-size:.8rem;color:var(--brand);background:var(--soft);border:0;border-radius:99px;padding:3px 10px}
+.stp{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--brand)}
 .pshare{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 .pshare .fxb{margin:0;display:inline-flex;align-items:center;cursor:pointer}
 .filt{margin:0 0 12px}
@@ -308,6 +316,39 @@ main section{margin-bottom:20px}
     <div id="tickets-items"></div>
   </section>
 
+  <section id="view-stays" hidden>
+    <h2>住宿安排</h2>
+    <div class="panel">
+      <label class="f">飯店／公寓名稱<input type="text" id="stay-name" placeholder="例如：Bob W Helsinki City Centre"></label>
+      <div class="two">
+        <label class="f">入住日期<input type="date" id="stay-in" onchange="stayDefOut()"></label>
+        <label class="f">退房日期<input type="date" id="stay-out"></label>
+      </div>
+      <label class="f">城市／國家<input type="text" id="stay-city" placeholder="例如：赫爾辛基, 芬蘭"></label>
+      <details class="more">
+        <summary>更多訂房資料（選填）</summary>
+        <div class="morebody">
+          <label class="f">地址<input type="text" id="stay-addr"></label>
+          <label class="f">房型<input type="text" id="stay-room" placeholder="例如：三房公寓（含廚房、桑拿）"></label>
+          <label class="f">價格（台幣）<input type="number" id="stay-price" inputmode="decimal" placeholder="整筆訂單的總價"></label>
+          <label class="f">訂單／確認碼<input type="text" id="stay-code" placeholder="例如：6698.147.253 (PIN 3424)"></label>
+          <label class="f">付款方式<input type="text" id="stay-pay" placeholder="例如：現場刷卡、自動扣款（卡號末四碼）"></label>
+          <label class="f">免費取消截止<input type="text" id="stay-cancel" placeholder="例如：2026-10-19 23:59"></label>
+          <label class="f">飯店網頁／訂房頁<input type="text" id="stay-url" inputmode="url" placeholder="https://"></label>
+        </div>
+      </details>
+      <label class="f">備註<textarea id="stay-note" placeholder="例如：櫃檯幾點前要到、抵達方式、鑰匙領取、要提醒自己的事"></textarea></label>
+      <button class="btn" onclick="addStay(this)">新增住宿</button>
+    </div>
+    <div class="pshare">
+      <button type="button" class="fxb" onclick="staysShare()">分享清單</button>
+      <button type="button" class="fxb" onclick="placeBackup('stays')">備份檔</button>
+      <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'stays');this.value=''"></label>
+    </div>
+    <div id="stays-sum" class="hint" style="margin:0 4px 10px"></div>
+    <div id="stays-items"></div>
+  </section>
+
   <section id="view-spots" hidden>
     <h2>必逛景點</h2>
     <div class="panel">
@@ -359,6 +400,7 @@ main section{margin-bottom:20px}
   <button data-tab="souvenirs"><i data-ic="gift"></i>伴手禮</button>
   <button data-tab="expenses"><i data-ic="wallet"></i>記帳</button>
   <button data-tab="tickets"><i data-ic="ticket"></i>票券</button>
+  <button data-tab="stays"><i data-ic="bed"></i>住宿</button>
   <button data-tab="spots"><i data-ic="pin"></i>景點</button>
   <button data-tab="food"><i data-ic="utensils"></i>餐廳</button>
   <button data-tab="notes"><i data-ic="note"></i>生活筆記</button>
@@ -424,6 +466,7 @@ const ICONS={
   pin:'<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   utensils:'<path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 21V3c-3 2-4 5-4 8h4"/>',
   ticket:'<path d="M3 7h18v3a2 2 0 0 0 0 4v3H3v-3a2 2 0 0 0 0-4zM14 7v10"/>',
+  bed:'<path d="M3 19V6M3 15h18v4M21 15v-3a3 3 0 0 0-3-3h-8v6M6.5 12a1.5 1.5 0 1 0 .01 0"/>',
   edit:'<path d="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4"/>',
   down:'<path d="m6 9 6 6 6-6"/>',
   out:'<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>'
@@ -445,7 +488,7 @@ const norm=i=>{
 };
 const sig=x=>JSON.stringify(Object.assign({},x,{u:0}));
 // --- IndexedDB 底層 ---
-const MEM={},STORE_KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes'];
+const MEM={},STORE_KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes','stays'];
 let IDB=null,idbChain=Promise.resolve(),idbWarned=false;
 function idbOpen(){
   return new Promise(res=>{
@@ -892,6 +935,7 @@ const EDIT={
   souvenirs:{title:'編輯伴手禮',f:[['text1','對象 / 物品名稱','text']],photo:[600,.6]},
   expenses:{title:'編輯花費',f:[['text1','花費金額','number'],['day','消費日期','date'],['cur','幣別','cur'],['rate','匯率（1 單位外幣 ＝ 幾元台幣；台幣填 1）','number'],['text2','項目說明','text']],photo:[600,.6],files:true},
   tickets:{title:'編輯票券',f:[['text1','票券名稱','text'],['date','使用日期（選填）','date'],['note','備註（選填）','text']],photo:[1000,.8],files:true},
+  stays:{title:'編輯住宿',f:[['name','飯店／公寓名稱','text'],['checkin','入住日期','date'],['checkout','退房日期','date'],['city','城市／國家','text'],['address','地址','text'],['room','房型','text'],['price','價格（台幣）','number'],['code','訂單／確認碼','text'],['pay','付款方式','text'],['cancel','免費取消截止','text'],['url','飯店網頁／訂房頁','text'],['note','備註','textarea']]},
   spots:{title:'編輯景點',f:[['name','景點名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','text']]},
   food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text']]},
   notes:{title:'編輯筆記',f:[['title','標題（選填）','text'],['text','內容','textarea'],['remind','提醒時間（選填，清空即取消提醒）','datetime-local'],['remindTz','提醒時區','select']],photo:[1000,.8],files:true,any:true}
@@ -955,6 +999,7 @@ function saveEdit(){
     const first=cfg.f[0][0];
     if(!v[first]){alert('「'+cfg.f[0][1]+'」不能空白');return $('ed-body').querySelector('[data-k]').focus()}
   }
+  if(type==='stays'&&v.checkin&&v.checkout&&v.checkout<v.checkin){alert('退房日期不能早於入住日期');return}
   if(type==='expenses'){
     if(!v.day)v.day=dayOf(i);
     v.rate=v.cur==='TWD'?1:Number(v.rate);
@@ -1022,6 +1067,62 @@ const editBtn=(type,id)=>`<button class="ed-b" aria-label="編輯" onclick="edit
 const acts=(type,id,pre='')=>`<span class="acts">${pre}${editBtn(type,id)}${delBtn(type,id)}</span>`;
 const delBtn=(type,id)=>`<button class="del" aria-label="刪除" onclick="deleteItem('${type}',${id})">${ic('trash')}</button>`;
 
+// === 住宿 ===
+const dayN=(a,b)=>{const x=new Date(a+'T00:00:00'),y=new Date(b+'T00:00:00');return (isNaN(x)||isNaN(y))?0:Math.round((y-x)/864e5)};
+const fmtD=d=>{const x=new Date(d+'T00:00:00');return isNaN(x)?'':x.toLocaleDateString('zh-TW',{month:'numeric',day:'numeric',weekday:'short'})};
+const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
+function stayDefOut(){const a=$('stay-in').value,o=$('stay-out');if(a&&(!o.value||o.value<a)){const d=new Date(a+'T00:00:00');d.setDate(d.getDate()+1);o.value=ymd(d)}}
+function addStay(btn){
+  const g=id=>$(id).value.trim(),name=g('stay-name');
+  if(!name){alert('請輸入飯店或公寓名稱');return $('stay-name').focus()}
+  const ci=g('stay-in'),co=g('stay-out');
+  if(ci&&co&&co<ci){alert('退房日期不能早於入住日期');return $('stay-out').focus()}
+  const d=Store.get('stays');
+  d.unshift({id:Date.now(),name,checkin:ci,checkout:co,city:g('stay-city'),address:g('stay-addr'),room:g('stay-room'),price:g('stay-price'),code:g('stay-code'),pay:g('stay-pay'),cancel:g('stay-cancel'),url:g('stay-url'),note:g('stay-note')});
+  if(Store.set('stays',d)){
+    ['name','in','out','city','addr','room','price','code','pay','cancel','url','note'].forEach(k=>$('stay-'+k).value='');
+    document.querySelector('#view-stays details.more').open=false;
+  }
+  render();
+}
+function copyText(t){
+  (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>alert('已複製')).catch(()=>prompt('請全選並複製：',t));
+}
+const staysSorted=()=>Store.get('stays').sort((a,b)=>(a.checkin||'9999').localeCompare(b.checkin||'9999')||a.id-b.id);
+function renderStays(){
+  const list=staysSorted();
+  const nset=new Set();list.forEach(i=>{const n=dayN(i.checkin,i.checkout);for(let k=0;k<n;k++){const d=new Date(i.checkin+'T00:00:00');d.setDate(d.getDate()+k);nset.add(ymd(d))}});
+  const nights=nset.size,total=list.reduce((n,i)=>n+(Number(i.price)||0),0);
+  $('stays-sum').textContent=list.length?`共 ${list.length} 筆・${nights} 晚${total?'・合計 NT$'+Math.round(total).toLocaleString():''}`:'';
+  $('stays-items').innerHTML=list.length?list.map(i=>{
+    const n=dayN(i.checkin,i.checkout),dates=i.checkin?`${fmtD(i.checkin)}${i.checkout?' → '+fmtD(i.checkout):''}${n?'・'+n+' 晚':''}`:'';
+    const q=[i.name,i.address||i.city].filter(Boolean).join(' '),url=safeUrl(i.url);
+    const kv=(k,v,extra='')=>v?`<div class="kv"><span>${k}</span><span>${v}${extra}</span></div>`:'';
+    return `<details class="place stay">
+      <summary>${ic('bed')}<b>${esc(i.name)}<small>${esc([dates,i.city].filter(Boolean).join('・'))}</small></b>${Number(i.price)?`<span class="stp">NT$${Math.round(Number(i.price)).toLocaleString()}</span>`:''}<span class="chev">${ic('down')}</span></summary>
+      <div class="pbody">
+        ${kv('入住',esc(i.checkin?fmtD(i.checkin):''))}${kv('退房',esc(i.checkout?fmtD(i.checkout):''))}
+        ${kv('房型',esc(i.room))}${kv('地址',esc(i.address))}
+        ${kv('訂單／確認碼',esc(i.code),i.code?`<button class="cp" data-t="${esc(i.code)}" onclick="copyText(this.dataset.t)">複製</button>`:'')}
+        ${kv('付款方式',esc(i.pay))}${kv('免費取消',esc(i.cancel))}
+        ${kv('備註',i.note?`<span class="note">${esc(i.note)}</span>`:'')}
+        <div class="plinks">
+          <span style="display:flex;gap:14px;flex-wrap:wrap"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}" target="_blank" rel="noopener">${ic('out')}地圖</a>${url?`<a href="${esc(url)}" target="_blank" rel="noopener">${ic('out')}訂房頁</a>`:''}</span>
+          <span style="display:flex;gap:14px"><button class="ed" onclick="editItem('stays',${i.id})">${ic('edit')}編輯</button><button onclick="deleteItem('stays',${i.id})">${ic('trash')}刪除</button></span>
+        </div>
+      </div>
+    </details>`}).join(''):empty('把訂房資料記在這裡：入住退房日期、確認碼、地址，還能寫備註提醒自己。');
+}
+function staysShare(){
+  const list=staysSorted();if(!list.length){alert('目前沒有住宿資料可以分享。');return}
+  const text='住宿安排\n\n'+list.map((i,n)=>{
+    const nn=dayN(i.checkin,i.checkout);
+    return `${n+1}. ${i.name}\n   ${[i.checkin&&i.checkin+(i.checkout?' ~ '+i.checkout:''),nn?nn+' 晚':''].filter(Boolean).join('，')}\n   ${[i.city,i.address].filter(Boolean).join(' ｜ ')}${i.room?'\n   房型：'+i.room:''}${i.code?'\n   確認碼：'+i.code:''}${i.note?'\n   備註：'+i.note:''}`;
+  }).join('\n\n');
+  if(navigator.share)navigator.share({title:'住宿安排',text}).catch(e=>{if(e&&e.name!=='AbortError')prompt('請全選並複製這段文字：',text)});
+  else copyText(text);
+}
+
 const FILT={spots:{c:'',r:''},food:{c:'',r:''}};
 function setFilt(type,k,v){FILT[type][k]=v;if(k==='c')FILT[type].r='';render()}
 function render(){
@@ -1063,6 +1164,7 @@ function render(){
       ${(i.files||[]).length?`<div class="flw tkf">${fileRows('tickets',i)}</div>`:''}
     </div>`).join(''):empty('把車票、通行證或 QR Code 拍下來，搭車時直接翻出來用。');
 
+  renderStays();
   const nt=Store.get('notes');
   $('notes-items').innerHTML=nt.length?nt.map(noteCard).join(''):empty('記下重要的事、拍下文件，還能設定提醒時間。');
 
@@ -1096,7 +1198,7 @@ function render(){
 }
 
 // === 景點／餐廳：分享清單與備份檔 ===
-const PNAME={spots:'必逛景點',food:'必吃餐廳'};
+const PNAME={spots:'必逛景點',food:'必吃餐廳',stays:'住宿'};
 function placeView(type){
   const F=FILT[type],NONE='__none';
   return Store.get(type).filter(i=>(!F.c||(i.country||'').trim()===(F.c===NONE?'':F.c))&&(!F.r||(i.region||'').trim()===(F.r===NONE?'':F.r)));
@@ -1127,7 +1229,7 @@ async function placeBackup(type){
 }
 
 // === 備份 / 匯入 / 列印 ===
-const KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes'];
+const KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes','stays'];
 function exportData(){
   const data={};KEYS.forEach(k=>data[k]=Store.get(k));
   const blob=new Blob([JSON.stringify({app:'TravelNotebook',version:1,exported:new Date().toISOString(),data})],{type:'application/json'});
