@@ -129,6 +129,7 @@ details.place{background:var(--paper);border-radius:var(--r);margin-bottom:10px;
 details.place summary{list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;font-weight:600}
 details.place summary::-webkit-details-marker{display:none}
 details.place summary b{flex:1;overflow-wrap:anywhere}
+details.place summary .pth{width:46px;height:46px;border-radius:10px;object-fit:cover;flex:none}
 details.place summary svg:first-child{color:var(--brand)}
 .chev{transition:transform .2s;color:var(--muted)}
 details[open] .chev{transform:rotate(180deg)}
@@ -1129,6 +1130,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
 <dialog id="dm">
   <h2>資料管理</h2>
+  <p class="dnote">程式版本：<b id="app-ver"></b></p>
   <div class="cloudbox" id="cloud-box" hidden>
     <b>雲端同步</b>
     <p class="dnote" id="cloud-note"></p>
@@ -1928,7 +1930,7 @@ function render(){
       ${(F.c||F.r)?`<p class="fcount">顯示 ${items.length} / ${all.length} 筆 · <a href="#" onclick="setFilt('${type}','c','');return false">清除篩選</a></p>`:''}`:'';
     $(type+'-items').innerHTML=all.length&&!items.length?empty('沒有符合的項目，請改選其他國家或區域。'):items.length?items.map(i=>`
       <details class="place" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
-        <summary>${ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
+        <summary>${(i.images||[]).length?`<img class="pth" src="${i.images[0]}" alt="">`:ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
         <div class="pbody">${(i.images||[]).length?`<div class="pstrip">${i.images.map(x=>`<img src="${x}" alt="${esc(i.name)}" onclick="zoom(this.src)">`).join('')}</div>`:''}${i.address?`<p class="addr">${esc(i.address)}</p>`:''}${noteLong(i.note)?`<p class="pnote">${esc(i.note)}</p>`:''}<div class="map"></div>
           <div class="plinks">
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}用 Google 地圖開啟</a>
@@ -2271,6 +2273,7 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
 };
 const Cloud=window.__CLOUD||FB;
 const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
+const APP_VERSION='2026.10.10-photo';
 const PHOTO_TYPES=['souvenirs','expenses','tickets','notes','spots','food'];
 const FILE_TYPES=['expenses','tickets','notes'];
 
@@ -2490,7 +2493,7 @@ const Sync=(()=>{
         if(it.u>getSync(type+'_'+it.id))un.push(type+'：照片 '+(it.images||[]).length+'、文件 '+(it.files||[]).length+'、約 '+Math.round(JSON.stringify(it).length/1024)+' KB');
       }
       const used=Store.size()+Object.keys(localStorage).filter(k=>k.startsWith('travel_')).reduce((n,k)=>n+(localStorage.getItem(k)||'').length,0);
-      const txt=JSON.stringify({狀態:status,錯誤:errText(lastErr),錯誤代碼:lastErr,已登入:!!uid,網路:navigator.onLine,儲存方式:IDB?'IndexedDB':'LocalStorage（舊式，上限約 5 MB）',本機已用字元:used,尚未同步的項目:un,最近錯誤:LOG},null,1);
+      const txt=JSON.stringify({版本:APP_VERSION,狀態:status,錯誤:errText(lastErr),錯誤代碼:lastErr,已登入:!!uid,網路:navigator.onLine,儲存方式:IDB?'IndexedDB':'LocalStorage（舊式，上限約 5 MB）',本機已用字元:used,尚未同步的項目:un,最近錯誤:LOG},null,1);
       (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>alert('已複製診斷資訊，請貼給我。')).catch(()=>prompt('請全選並複製這段文字：',txt));
     },
     signedIn:()=>!!uid,
@@ -2532,6 +2535,7 @@ $('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()
   ['country','region','address','note'].forEach(k=>$(t+'-'+k)&&$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
 });
 tzOptions($('note-tz'),jget('travel__tz',DEV_TZ));
+$('app-ver').textContent=APP_VERSION;
 ['ticket-photo','ticket-file','souvenir-photo','expense-photo','expense-file','note-photo','note-file','spots-photo','food-photo'].forEach(pickerInit);
 setInterval(checkAlarms,15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAlarms()});
