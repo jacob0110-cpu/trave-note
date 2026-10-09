@@ -176,6 +176,8 @@ dialog img{max-width:94vw;max-height:88vh;border-radius:12px;display:block}
 #dm::backdrop,#cf::backdrop,#ed::backdrop{background:rgba(0,0,0,.6)}
 .hint{font-size:.85rem;color:var(--muted)}
 .fxb{margin-top:8px;font:inherit;font-weight:600;font-size:.9rem;color:var(--brand);background:var(--soft);border:0;border-radius:999px;padding:8px 16px;min-height:40px}
+.pshare{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.pshare .fxb{margin:0;display:inline-flex;align-items:center;cursor:pointer}
 .filt{margin:0 0 12px}
 .filt:empty{display:none}
 .filt label{font-size:.8rem;font-weight:600;color:var(--muted);display:grid;gap:4px}
@@ -320,6 +322,11 @@ main section{margin-bottom:20px}
       <label class="f">備註（選填）<input type="text" id="spots-note" placeholder="例如：需預約、週一休館、建議早上去"></label>
       <button class="btn" onclick="askPlace('spots')">確認資料</button>
     </div>
+    <div class="pshare">
+      <button type="button" class="fxb" onclick="placeShare('spots')">分享清單</button>
+      <button type="button" class="fxb" onclick="placeBackup('spots')">備份檔</button>
+      <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'spots');this.value=''"></label>
+    </div>
     <div class="two filt" id="spots-filter"></div>
     <div id="spots-items"></div>
   </section>
@@ -336,6 +343,11 @@ main section{margin-bottom:20px}
       </div>
       <label class="f">地址<input type="text" id="food-address" placeholder="自動帶入，可自行修改"></label>
       <button class="btn" onclick="askPlace('food')">確認資料</button>
+    </div>
+    <div class="pshare">
+      <button type="button" class="fxb" onclick="placeShare('food')">分享清單</button>
+      <button type="button" class="fxb" onclick="placeBackup('food')">備份檔</button>
+      <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'food');this.value=''"></label>
     </div>
     <div class="two filt" id="food-filter"></div>
     <div id="food-items"></div>
@@ -1083,6 +1095,37 @@ function render(){
   checkAlarms();
 }
 
+// === 景點／餐廳：分享清單與備份檔 ===
+const PNAME={spots:'必逛景點',food:'必吃餐廳'};
+function placeView(type){
+  const F=FILT[type],NONE='__none';
+  return Store.get(type).filter(i=>(!F.c||(i.country||'').trim()===(F.c===NONE?'':F.c))&&(!F.r||(i.region||'').trim()===(F.r===NONE?'':F.r)));
+}
+async function placeShare(type){
+  const list=placeView(type);
+  if(!list.length){alert('目前沒有可以分享的項目。');return}
+  const F=FILT[type],scope=[F.c,F.r].filter(Boolean).map(x=>x==='__none'?'未填':x).join(' · ');
+  const title=`${PNAME[type]}${scope?'（'+scope+'）':''}　共 ${list.length} 筆`;
+  const text=title+'\n\n'+list.map((i,n)=>`${n+1}. ${i.name}${i.note?'（'+i.note+'）':''}\n   ${[loc(i),i.address].filter(Boolean).join(' ｜ ')}\n   https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}`).join('\n\n');
+  try{
+    if(navigator.share){await navigator.share({title,text});return}
+    await navigator.clipboard.writeText(text);alert('已複製清單，可以貼到 LINE 或其他 App。');
+  }catch(e){if(e&&e.name==='AbortError')return;prompt('請全選並複製這段文字：',text)}
+}
+async function placeBackup(type){
+  const data={};data[type]=Store.get(type);
+  if(!data[type].length){alert('目前沒有資料可以備份。');return}
+  const json=JSON.stringify({app:'TravelNotebook',version:1,exported:new Date().toISOString(),data});
+  const name=`travel-${type}-${new Date().toISOString().slice(0,10)}.json`;
+  try{
+    const f=new File([json],name,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:PNAME[type]+'備份'});return}
+  }catch(e){if(e&&e.name==='AbortError')return}
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([json],{type:'application/json'}));a.download=name;
+  document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+
 // === 備份 / 匯入 / 列印 ===
 const KEYS=['checklist','souvenirs','expenses','tickets','spots','food','notes'];
 function exportData(){
@@ -1094,23 +1137,24 @@ function exportData(){
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 }
-function importData(file){
+function importData(file,only){
   if(!file)return;
   const r=new FileReader();
   r.onload=()=>{
     try{
       const j=JSON.parse(r.result),src=j.data||j;
-      if(!KEYS.some(k=>Array.isArray(src[k])))throw new Error('format');
+      const KS=only?[only]:KEYS;
+      if(!KS.some(k=>Array.isArray(src[k])))throw new Error('format');
       if(!confirm('要把備份檔合併到目前的資料嗎？相同項目不會重複。'))return;
       let n=0;
-      KEYS.forEach(k=>{
+      KS.forEach(k=>{
         if(!Array.isArray(src[k]))return;
         const cur=Store.get(k),ids=new Set(cur.map(i=>i.id));
         const add=src[k].filter(i=>i&&i.id!=null&&!ids.has(i.id));
         n+=add.length;
         if(add.length)Store.set(k,cur.concat(add).sort((a,b)=>b.id-a.id));
       });
-      render();$('dm').close();alert('已匯入 '+n+' 筆資料');
+      render();if($('dm').open)$('dm').close();alert('已匯入 '+n+' 筆資料'+(only&&!n?'（沒有新的項目，或檔案裡沒有這個分頁的資料）':''));
     }catch(e){alert('無法讀取這個檔案，請選擇從本頁下載的備份檔（.json）。')}
   };
   r.readAsText(file);
