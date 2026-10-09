@@ -318,28 +318,6 @@ main section{margin-bottom:20px}
 
   <section id="view-stays" hidden>
     <h2>住宿安排</h2>
-    <div class="panel">
-      <label class="f">飯店／公寓名稱<input type="text" id="stay-name" placeholder="例如：Bob W Helsinki City Centre"></label>
-      <div class="two">
-        <label class="f">入住日期<input type="date" id="stay-in" onchange="stayDefOut()"></label>
-        <label class="f">退房日期<input type="date" id="stay-out"></label>
-      </div>
-      <label class="f">城市／國家<input type="text" id="stay-city" placeholder="例如：赫爾辛基, 芬蘭"></label>
-      <details class="more">
-        <summary>更多訂房資料（選填）</summary>
-        <div class="morebody">
-          <label class="f">地址<input type="text" id="stay-addr"></label>
-          <label class="f">房型<input type="text" id="stay-room" placeholder="例如：三房公寓（含廚房、桑拿）"></label>
-          <label class="f">價格（台幣）<input type="number" id="stay-price" inputmode="decimal" placeholder="整筆訂單的總價"></label>
-          <label class="f">訂單／確認碼<input type="text" id="stay-code" placeholder="例如：6698.147.253 (PIN 3424)"></label>
-          <label class="f">付款方式<input type="text" id="stay-pay" placeholder="例如：現場刷卡、自動扣款（卡號末四碼）"></label>
-          <label class="f">免費取消截止<input type="text" id="stay-cancel" placeholder="例如：2026-10-19 23:59"></label>
-          <label class="f">飯店網頁／訂房頁<input type="text" id="stay-url" inputmode="url" placeholder="https://"></label>
-        </div>
-      </details>
-      <label class="f">備註<textarea id="stay-note" placeholder="例如：櫃檯幾點前要到、抵達方式、鑰匙領取、要提醒自己的事"></textarea></label>
-      <button class="btn" onclick="addStay(this)">新增住宿</button>
-    </div>
     <div class="pshare">
       <button type="button" class="fxb" onclick="staysShare()">分享清單</button>
       <button type="button" class="fxb" onclick="placeBackup('stays')">備份檔</button>
@@ -1071,20 +1049,6 @@ const delBtn=(type,id)=>`<button class="del" aria-label="刪除" onclick="delete
 const dayN=(a,b)=>{const x=new Date(a+'T00:00:00'),y=new Date(b+'T00:00:00');return (isNaN(x)||isNaN(y))?0:Math.round((y-x)/864e5)};
 const fmtD=d=>{const x=new Date(d+'T00:00:00');return isNaN(x)?'':x.toLocaleDateString('zh-TW',{month:'numeric',day:'numeric',weekday:'short'})};
 const safeUrl=u=>/^https?:\/\//i.test(u||'')?u:'';
-function stayDefOut(){const a=$('stay-in').value,o=$('stay-out');if(a&&(!o.value||o.value<a)){const d=new Date(a+'T00:00:00');d.setDate(d.getDate()+1);o.value=ymd(d)}}
-function addStay(btn){
-  const g=id=>$(id).value.trim(),name=g('stay-name');
-  if(!name){alert('請輸入飯店或公寓名稱');return $('stay-name').focus()}
-  const ci=g('stay-in'),co=g('stay-out');
-  if(ci&&co&&co<ci){alert('退房日期不能早於入住日期');return $('stay-out').focus()}
-  const d=Store.get('stays');
-  d.unshift({id:Date.now(),name,checkin:ci,checkout:co,city:g('stay-city'),address:g('stay-addr'),room:g('stay-room'),price:g('stay-price'),code:g('stay-code'),pay:g('stay-pay'),cancel:g('stay-cancel'),url:g('stay-url'),note:g('stay-note')});
-  if(Store.set('stays',d)){
-    ['name','in','out','city','addr','room','price','code','pay','cancel','url','note'].forEach(k=>$('stay-'+k).value='');
-    document.querySelector('#view-stays details.more').open=false;
-  }
-  render();
-}
 function copyText(t){
   (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>alert('已複製')).catch(()=>prompt('請全選並複製：',t));
 }
@@ -1111,7 +1075,7 @@ function renderStays(){
           <span style="display:flex;gap:14px"><button class="ed" onclick="editItem('stays',${i.id})">${ic('edit')}編輯</button><button onclick="deleteItem('stays',${i.id})">${ic('trash')}刪除</button></span>
         </div>
       </div>
-    </details>`}).join(''):empty('把訂房資料記在這裡：入住退房日期、確認碼、地址，還能寫備註提醒自己。');
+    </details>`}).join(''):empty('尚無住宿資料。請按上方「匯入」載入住宿檔案；載入後可以點開每一筆，按「編輯」補充備註。');
 }
 function staysShare(){
   const list=staysSorted();if(!list.length){alert('目前沒有住宿資料可以分享。');return}
