@@ -176,6 +176,18 @@ dialog img{max-width:94vw;max-height:88vh;border-radius:12px;display:block}
 #dm::backdrop,#cf::backdrop,#ed::backdrop{background:rgba(0,0,0,.6)}
 .hint{font-size:.85rem;color:var(--muted)}
 .fxb{margin-top:8px;font:inherit;font-weight:600;font-size:.9rem;color:var(--brand);background:var(--soft);border:0;border-radius:999px;padding:8px 16px;min-height:40px}
+.msearch{display:flex;gap:8px;margin-bottom:10px}
+.msearch input{flex:1;min-width:0}
+.mres{display:grid;gap:6px;margin-bottom:10px}
+.mres:empty{display:none}
+.mres button.rs{display:flex;align-items:center;gap:10px;text-align:left;font:inherit;background:var(--paper);border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--ink);cursor:pointer;min-height:48px}
+.mres button.rs b{display:block;font-weight:600;overflow-wrap:anywhere}
+.mres button.rs small{display:block;color:var(--muted);font-size:.8rem;overflow-wrap:anywhere}
+.mres .rs .pp-i{flex:none;width:28px;height:28px;margin:0}
+.mres .rs .pp-i svg{width:16px;height:16px}
+.mres .rm{font-size:.85rem;color:var(--muted);padding:2px 4px}
+.mres .rm a{color:var(--brand);font-weight:600}
+.pp-b{font:inherit;font-weight:700;font-size:.85rem;border:0;border-radius:999px;padding:7px 14px;background:#0E6A73;color:#fff;margin:6px 6px 0 0;cursor:pointer}
 .mchips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .mchip{display:inline-flex;align-items:center;gap:8px;font:inherit;font-weight:600;font-size:.9rem;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:8px 14px;min-height:44px;cursor:pointer}
 .mchip i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:none}
@@ -1058,6 +1070,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
   </section>
   <section id="view-map" hidden>
     <h2>行程地圖</h2>
+    <div class="msearch">
+      <input type="text" id="map-q" placeholder="輸入地點名稱搜尋（例如：Rovaniemi 聖誕老人村）" enterkeyhint="search" onkeydown="if(event.key==='Enter')mapSearch()">
+      <button type="button" class="btn" onclick="mapSearch()">搜尋</button>
+    </div>
+    <div class="mres" id="map-res"></div>
     <div class="mchips" id="map-chips"></div>
     <div id="tmap"></div>
     <div class="mchips" id="map-layers" style="margin:10px 0 0"></div>
@@ -1907,7 +1924,7 @@ const MAPL=[
 ];
 const mapSym=t=>ic(MAPT[t].ic);
 const mapOn={spots:true,stays:true,food:true};
-let LMAP=null,LBASE=null,LGROUP=null,mapLayer=jget('travel__maplayer','topo'),geoBusy=false,geoLast=0,tileErr=0;
+let LMARKS={},LFIND=null,MRES=[],MFOUND=null,LMAP=null,LBASE=null,LGROUP=null,mapLayer=jget('travel__maplayer','topo'),geoBusy=false,geoLast=0,tileErr=0;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function geoQueries(t,i){
   const j=a=>a.filter(Boolean).join(' ');
@@ -1956,13 +1973,13 @@ function mapPopup(t,i){
 }
 function mapDraw(fit){
   if(!LMAP)return;
-  LGROUP.clearLayers();const pts=[];
+  LGROUP.clearLayers();LMARKS={};const pts=[];
   Object.keys(MAPT).forEach(t=>{
     if(!mapOn[t])return;
     Store.get(t).forEach(i=>{
       if(!(i.lat&&i.lng))return;
       const m=L.marker([i.lat,i.lng],{title:i.name,icon:L.divIcon({className:'',html:`<div class="mk" style="background:${MAPT[t].color}">${mapSym(t)}</div>`,iconSize:[32,32],iconAnchor:[16,16],popupAnchor:[0,-18]})});
-      m.bindPopup(mapPopup(t,i),{maxWidth:260});LGROUP.addLayer(m);pts.push([i.lat,i.lng]);
+      m.bindPopup(mapPopup(t,i),{maxWidth:260});LMARKS[t+'_'+i.id]=m;LGROUP.addLayer(m);pts.push([i.lat,i.lng]);
     });
   });
   if(fit&&pts.length){pts.length===1?LMAP.setView(pts[0],13):LMAP.fitBounds(pts,{padding:[30,30],maxZoom:14})}
@@ -1980,6 +1997,67 @@ function mapStatus(msg){
   el.textContent=!total?'還沒有景點、住宿或餐廳。到各分頁新增後，就會標示在這裡。':
     `已標示 ${got} / ${total} 個地點`+(got<total?`，其中 ${total-got} 個找不到位置，可以到該分頁編輯地址或名稱，再按「重新定位」。`:'。點標記可以看詳細資料。')+(tileErr>3?' 地圖圖磚載入失敗，可能沒有網路。':'');
 }
+// --- 搜尋地點 ---
+const FINDC='#5B3FA8';
+function mapClearSearch(){
+  if(LFIND&&LMAP){LMAP.removeLayer(LFIND);LFIND=null}
+  MRES=[];MFOUND=null;$('map-res').innerHTML='';
+}
+async function mapSearch(){
+  const q=$('map-q').value.trim(),box=$('map-res');
+  if(!q)return $('map-q').focus();
+  if(!LMAP)mapShow();
+  const lq=q.toLowerCase();MRES=[];
+  Object.keys(MAPT).forEach(t=>Store.get(t).forEach(i=>{
+    const hay=[i.name,i.address,i.region,i.country,i.city,i.note].join(' ').toLowerCase();
+    if(hay.includes(lq)&&i.lat&&i.lng)MRES.push({saved:t,i});
+  }));
+  const show=(msg)=>{
+    box.innerHTML=MRES.map((r,k)=>{
+      const t=r.saved,col=t?MAPT[t].color:FINDC;
+      const name=t?r.i.name:r.p.name,sub=t?(t==='stays'?r.i.city:loc(r.i)):[r.p.region,r.p.country].filter(Boolean).join('，');
+      return `<button type="button" class="rs" onclick="mapPick(${k})"><span class="pp-i" style="background:${col}">${t?mapSym(t):ic('pin')}</span><span><b>${esc(name)}</b><small>${esc([t?'已儲存':'',sub].filter(Boolean).join('・'))}</small></span></button>`;
+    }).join('')+(msg?`<div class="rm">${msg}</div>`:'')+(MRES.length||msg?`<div class="rm"><a href="#" onclick="mapClearSearch();return false">清除搜尋結果</a></div>`:'');
+  };
+  box.innerHTML='<div class="rm">搜尋中…</div>';
+  let msg='';
+  try{
+    const wait=1100-(Date.now()-geoLast);if(wait>0)await sleep(wait);geoLast=Date.now();
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&accept-language=zh-TW&q='+encodeURIComponent(q));
+    if(!r.ok)throw new Error(r.status);
+    (await r.json()).forEach(x=>{const p=toPlace(x);if(p.lat&&p.lng)MRES.push({p})});
+    if(!MRES.length)msg='找不到符合的地點，可以換個說法，或加上城市名稱再試。';
+  }catch(e){msg=MRES.length?'':'目前無法搜尋（可能沒有網路），請稍後再試。'}
+  show(msg);
+  if(MRES.length===1||MRES.length&&MRES[0].saved)mapPick(0,true);
+}
+function mapPick(k,quiet){
+  const r=MRES[k];if(!r||!LMAP)return;
+  if(LFIND){LMAP.removeLayer(LFIND);LFIND=null}
+  if(r.saved){
+    const t=r.saved,i=r.i;
+    if(!mapOn[t]){mapOn[t]=true;mapChips();mapDraw()}
+    LMAP.setView([i.lat,i.lng],Math.max(LMAP.getZoom(),14));
+    const m=LMARKS[t+'_'+i.id];if(m)m.openPopup();
+    return;
+  }
+  const p=r.p;MFOUND=p;
+  LFIND=L.marker([p.lat,p.lng],{title:p.name,zIndexOffset:1000,icon:L.divIcon({className:'',html:`<div class="mk" style="background:${FINDC}">${ic('pin')}</div>`,iconSize:[32,32],iconAnchor:[16,16],popupAnchor:[0,-18]})}).addTo(LMAP);
+  LFIND.bindPopup(`<b>${esc(p.name)}</b><div class="pp-s">${esc([p.region,p.country].filter(Boolean).join('，'))}</div>${p.address?`<div class="pp-s">${esc(p.address)}</div>`:''}
+    <div><button type="button" class="pp-b" onclick="mapAddFound('spots')">加入景點</button><button type="button" class="pp-b" style="background:#B3402F" onclick="mapAddFound('food')">加入餐廳</button></div>
+    <div style="margin-top:6px"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([p.name,p.region,p.country].filter(Boolean).join(' '))}" target="_blank" rel="noopener">用 Google 地圖開啟</a></div>`,{maxWidth:260});
+  LMAP.setView([p.lat,p.lng],15);LFIND.openPopup();
+}
+function mapAddFound(type){
+  const p=MFOUND;if(!p)return;
+  const d=Store.get(type);
+  if(d.some(x=>x.name===p.name&&Math.abs((x.lat||0)-p.lat)<1e-4&&Math.abs((x.lng||0)-p.lng)<1e-4)){alert('這個地點已經在'+MAPT[type].label+'清單裡了。');return}
+  d.unshift({id:Date.now(),name:p.name,country:p.country,region:p.region,address:p.address,note:'',lat:p.lat,lng:p.lng});
+  if(!Store.set(type,d))return;
+  localStorage.setItem('travel_lastloc',JSON.stringify({country:p.country,region:p.region}));
+  mapClearSearch();render();mapStatus('已加入'+MAPT[type].label+'：'+p.name);
+}
+
 function mapLayers(){
   $('map-layers').innerHTML=MAPL.map(l=>`<button type="button" class="lchip" aria-pressed="${l.k===mapLayer}" onclick="mapSetLayer('${l.k}')">${l.label}</button>`).join('');
 }
