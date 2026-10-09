@@ -130,6 +130,9 @@ details.place summary{list-style:none;display:flex;align-items:center;gap:10px;p
 details.place summary::-webkit-details-marker{display:none}
 details.place summary b{flex:1;overflow-wrap:anywhere}
 details.place{border-left:6px solid var(--cc,transparent)}
+.ghead{display:flex;align-items:center;gap:8px;font-weight:700;font-size:.92rem;margin:16px 2px 8px}
+.ghead i{width:14px;height:14px;border-radius:50%;background:var(--cc);flex:none}
+.ghead:first-child{margin-top:0}
 .legend{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
 .legend:empty{display:none}
 .lg{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:.88rem;font-weight:600;color:var(--ink);background:var(--paper);border:1.5px solid var(--line);border-radius:999px;padding:6px 14px 6px 10px;min-height:40px;cursor:pointer}
@@ -1883,6 +1886,9 @@ function countryColor(c){
   let h=0;for(const ch of c)h=(h*31+ch.charCodeAt(0))>>>0;
   return CPAL[3+h%(CPAL.length-3)];
 }
+// 國家排序：行程國家（挪威、芬蘭、德國）在前，其他國家依名稱，沒填的放最後
+const cRank=c=>c===''?999:(c in CFIX?CFIX[c]:10);
+const cmpC=(a,b)=>cRank(a)-cRank(b)||a.localeCompare(b,'zh-TW');
 function legendPick(type,v){FILT[type].c=FILT[type].c===v?'':v;FILT[type].r='';render()}
 const noteShort=n=>{const l=String(n).split('\n')[0];return l.length>22?l.slice(0,22)+'…':l+(String(n).includes('\n')?'…':'')};
 const noteLong=n=>!!n&&(String(n).includes('\n')||String(n).length>22);
@@ -1935,12 +1941,14 @@ function render(){
   [['spots','pin','景點'],['food','utensils','餐廳']].forEach(([type,icon,name])=>{
     const all=Store.get(type),F=FILT[type],NONE='__none';
     const cOf=i=>(i.country||'').trim(),rOf=i=>(i.region||'').trim();
-    const countries=[...new Set(all.map(cOf))].sort((a,b)=>(a===''?1:0)-(b===''?1:0)||a.localeCompare(b,'zh-TW'));
+    const countries=[...new Set(all.map(cOf))].sort(cmpC);
     if(F.c&&!countries.includes(F.c==='__none'?'':F.c))F.c='';
     const pool=all.filter(i=>!F.c||cOf(i)===(F.c===NONE?'':F.c));
     const regions=[...new Set(pool.map(rOf))].sort((a,b)=>a.localeCompare(b,'zh-TW'));
     if(F.r&&!regions.includes(F.r==='__none'?'':F.r))F.r='';
-    const items=pool.filter(i=>!F.r||rOf(i)===(F.r===NONE?'':F.r));
+    const items=pool.filter(i=>!F.r||rOf(i)===(F.r===NONE?'':F.r)).sort((a,b)=>cmpC(cOf(a),cOf(b))||rOf(a).localeCompare(rOf(b),'zh-TW'));   // 同國家（同顏色）排在一起，同國家內再依區域
+    const grp=new Set(items.map(cOf)).size>1;
+    const head=(i,n)=>grp&&(n===0||cOf(items[n-1])!==cOf(i))?`<div class="ghead" style="--cc:${countryColor(cOf(i))}"><i></i>${esc(cOf(i)||'未填國家')}（${items.filter(x=>cOf(x)===cOf(i)).length}）</div>`:'';
     const opt=(v,sel,cnt)=>`<option value="${v===''?NONE:esc(v)}" ${sel?'selected':''}>${v===''?'（未填）':esc(v)}（${cnt}）</option>`;
     $(type+'-legend').innerHTML=all.length?countries.map(c=>{
       const v=c===''?NONE:c;
@@ -1950,7 +1958,7 @@ function render(){
       <label>國家<select onchange="setFilt('${type}','c',this.value)"><option value="">全部國家（${all.length}）</option>${countries.map(c=>opt(c,(F.c===NONE?'':F.c)===c&&!!F.c,all.filter(i=>cOf(i)===c).length)).join('')}</select></label>
       <label>區域<select onchange="setFilt('${type}','r',this.value)"><option value="">全部區域（${pool.length}）</option>${regions.map(r=>opt(r,(F.r===NONE?'':F.r)===r&&!!F.r,pool.filter(i=>rOf(i)===r).length)).join('')}</select></label>
       ${(F.c||F.r)?`<p class="fcount">顯示 ${items.length} / ${all.length} 筆 · <a href="#" onclick="setFilt('${type}','c','');return false">清除篩選</a></p>`:''}`:'';
-    $(type+'-items').innerHTML=all.length&&!items.length?empty('沒有符合的項目，請改選其他國家或區域。'):items.length?items.map(i=>`
+    $(type+'-items').innerHTML=all.length&&!items.length?empty('沒有符合的項目，請改選其他國家或區域。'):items.length?items.map((i,n)=>head(i,n)+`
       <details class="place" style="--cc:${countryColor(cOf(i))}" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
         <summary>${(i.images||[]).length?`<img class="pth" src="${i.images[0]}" alt="">`:ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small><span class="cdot" style="background:${countryColor(cOf(i))}"></span>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
         <div class="pbody">${(i.images||[]).length?`<div class="pstrip">${i.images.map(x=>`<img src="${x}" alt="${esc(i.name)}" onclick="zoom(this.src)">`).join('')}</div>`:''}${i.address?`<p class="addr">${esc(i.address)}</p>`:''}${noteLong(i.note)?`<p class="pnote">${esc(i.note)}</p>`:''}<div class="map"></div>
