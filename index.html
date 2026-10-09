@@ -118,6 +118,11 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);b
 .ph svg{width:2.2em;height:2.2em}
 .cap{display:flex;justify-content:space-between;gap:6px;padding:10px 12px;align-items:flex-start}
 .cap b{overflow-wrap:anywhere;line-height:1.35}
+.pstrip{display:flex;gap:6px;overflow-x:auto;margin:0 0 10px;-webkit-overflow-scrolling:touch}
+.pstrip img{height:110px;width:auto;flex:none;border-radius:10px;object-fit:cover;cursor:zoom-in}
+.sdesc{padding:0 12px 10px;font-size:.85rem}
+.sdesc summary{cursor:pointer;color:var(--brand);font-weight:600;padding:2px 0}
+.sdesc p{white-space:pre-wrap;margin:6px 0 0;line-height:1.6;overflow-wrap:anywhere}
 .cap small{display:block;color:var(--muted);font-size:.75rem}
 
 details.place{background:var(--paper);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
@@ -964,6 +969,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <label class="f">對象 / 物品名稱<input type="text" id="souvenir-name" placeholder="例如：給家人的鳳梨酥"></label>
       <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（可多張，選填）</span><input type="file" id="souvenir-photo" accept="image/*" multiple></label>
       <div class="pv" id="souvenir-photo-pv"></div>
+      <label class="f">說明／備註（選填）<textarea id="souvenir-note" placeholder="例如：哪裡買、標價、可不可以帶回國、要送誰"></textarea></label>
       <button class="btn" onclick="addPhotoItem('souvenirs',this)">儲存伴手禮</button>
     </div>
     <div class="pshare">
@@ -1035,6 +1041,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
       </div>
       <label class="f">地址<input type="text" id="spots-address" placeholder="自動帶入，可自行修改"></label>
       <label class="f">備註（選填）<input type="text" id="spots-note" placeholder="例如：需預約、週一休館、建議早上去"></label>
+      <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（可多張，選填）</span><input type="file" id="spots-photo" accept="image/*" multiple></label>
+      <div class="pv" id="spots-photo-pv"></div>
       <button class="btn" onclick="askPlace('spots')">確認資料</button>
     </div>
     <div class="pshare">
@@ -1058,6 +1066,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
       </div>
       <label class="f">地址<input type="text" id="food-address" placeholder="自動帶入，可自行修改"></label>
       <label class="f">備註（選填）<textarea id="food-note" placeholder="例如：招牌菜、需預約、營業時間、人均價位，想補充的內容都可以寫"></textarea></label>
+      <label class="pick"><i data-ic="camera"></i><span>拍照或選擇照片（可多張，選填）</span><input type="file" id="food-photo" accept="image/*" multiple></label>
+      <div class="pv" id="food-photo-pv"></div>
       <button class="btn" onclick="askPlace('food')">確認資料</button>
     </div>
     <div class="pshare">
@@ -1521,7 +1531,7 @@ curOptions($('expense-cur'),jget('travel__lastcur','TWD'));fxFill();
 function addPhotoItem(type,btn){
   const sv=type==='souvenirs',pid=sv?'souvenir-photo':'expense-photo',files=(PICK[pid]||[]).slice();
   const text1=$(sv?'souvenir-name':'expense-amount').value.trim();
-  const text2=sv?'':$('expense-desc').value.trim();
+  const text2=sv?$('souvenir-note').value.trim():$('expense-desc').value.trim();
   if(!text1){alert(sv?'請輸入伴手禮名稱或對象':'請輸入花費金額');return}
   let cur='TWD',rate=1,day='';
   if(!sv){
@@ -1542,7 +1552,7 @@ function addPhotoItem(type,btn){
     if(!sv){item.files=fl||[];item.cur=cur;item.rate=rate;item.day=day}
     d.unshift(item);
     if(Store.set(type,d)){
-      $(sv?'souvenir-name':'expense-amount').value='';
+      $(sv?'souvenir-name':'expense-amount').value='';if(sv)$('souvenir-note').value='';
       if(!sv){$('expense-desc').value='';pickerClear('expense-file');fxPreview()}
       pickerClear(pid);
     }
@@ -1633,27 +1643,35 @@ async function askPlace(type){
   const hasNote=!!noteEl;$('cf-note-t').hidden=!hasNote;$('cf-note').hidden=!hasNote;
   $('cf').showModal();
 }
-function savePlace(){
+async function savePlace(){
   if(!pending)return;
-  const {type,name,country,region,address,note,lat,lng}=pending,d=Store.get(type);
-  d.unshift(Object.assign({id:Date.now(),name,country,region,address,note},lat?{lat,lng}:{}));
+  const p=pending,{type,name,country,region,address,note,lat,lng}=p,files=(PICK[type+'-photo']||[]).slice();
+  pending=null;
+  let images=[];
+  if(files.length){
+    try{images=await compressMany(files,600,.6)}
+    catch(e){alert('照片處理失敗，請重新選擇照片。');pending=p;return}
+  }
+  const d=Store.get(type);
+  d.unshift(Object.assign({id:Date.now(),name,country,region,address,note},lat?{lat,lng}:{},images.length?{images}:{}));
   if(Store.set(type,d)){
     localStorage.setItem('travel_lastloc',JSON.stringify({country,region}));
     $(type+'-input').value='';$(type+'-address').value='';if($(type+'-note'))$(type+'-note').value='';
     $(type+'-hint').textContent='';$(type+'-cands').innerHTML='';looked[type]='';
+    pickerClear(type+'-photo');
   }
-  pending=null;$('cf').close();render();$(type+'-input').focus();
+  $('cf').close();render();$(type+'-input').focus();
 }
 // === 編輯已儲存的項目（所有分頁共用）===
 const EDIT={
   checklist:{title:'編輯準備項目',f:[['text','項目名稱','text']]},
-  souvenirs:{title:'編輯伴手禮',f:[['text1','對象 / 物品名稱','text']],photo:[600,.6]},
+  souvenirs:{title:'編輯伴手禮',f:[['text1','對象 / 物品名稱','text'],['text2','說明／備註','textarea']],photo:[600,.6]},
   expenses:{title:'編輯花費',f:[['text1','花費金額','number'],['day','消費日期','date'],['cur','幣別','cur'],['rate','匯率（1 單位外幣 ＝ 幾元台幣；台幣填 1）','number'],['text2','項目說明','text']],photo:[600,.6],files:true},
   tickets:{title:'編輯票券',f:[['text1','票券名稱','text'],['date','使用日期（選填）','date'],['note','備註（選填）','text']],photo:[1000,.8],files:true},
   transit:{title:'編輯交通地點',f:[['name','名稱（車站、機場、碼頭…）','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（班次、轉乘、票價…）','textarea']]},
   stays:{title:'編輯住宿',f:[['name','飯店／公寓名稱','text'],['checkin','入住日期','date'],['checkout','退房日期','date'],['city','城市／國家','text'],['address','地址','text'],['room','房型','text'],['price','價格（台幣）','number'],['code','訂單／確認碼','text'],['pay','付款方式','text'],['cancel','免費取消截止','text'],['url','飯店網頁／訂房頁','text'],['note','備註','textarea']]},
-  spots:{title:'編輯景點',f:[['name','景點名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','text']]},
-  food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','textarea']]},
+  spots:{title:'編輯景點',f:[['name','景點名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','text']],photo:[600,.6]},
+  food:{title:'編輯餐廳',f:[['name','餐廳名稱','text'],['country','國家','text'],['region','區域','text'],['address','地址','text'],['note','備註（選填）','textarea']],photo:[600,.6]},
   notes:{title:'編輯筆記',f:[['title','標題（選填）','text'],['text','內容','textarea'],['remind','提醒時間（選填，清空即取消提醒）','datetime-local'],['remindTz','提醒時區','select']],photo:[1000,.8],files:true,any:true}
 };
 let editing=null,editImgs=[],editFiles=[];
@@ -1866,6 +1884,7 @@ function render(){
       ${(i.images||[]).length?`<img src="${i.images[0]}" alt="${esc(i.text1)}" onclick="zoom(this.src)">`:`<div class="ph">${ic('gift')}</div>`}
       ${(i.images||[]).length>1?`<div class="strip">${i.images.slice(1).map(x=>`<img src="${x}" alt="${esc(i.text1)}" onclick="zoom(this.src)">`).join('')}</div>`:''}
       <div class="cap"><div><b>${esc(i.text1)}</b><small>${esc(i.date)}</small></div>${acts('souvenirs',i.id)}</div>
+      ${i.text2?`<details class="sdesc"><summary>說明</summary><p>${esc(i.text2)}</p></details>`:''}
     </div>`).join('')}</div>`:empty('記下要買給誰、買了什麼，還能附上照片。');
 
   const ex=Store.get('expenses').sort((a,b)=>dayOf(b).localeCompare(dayOf(a))||b.id-a.id),total=ex.reduce((s,i)=>s+twdOf(i),0),hasFx=ex.some(i=>i.cur&&i.cur!=='TWD');
@@ -1910,7 +1929,7 @@ function render(){
     $(type+'-items').innerHTML=all.length&&!items.length?empty('沒有符合的項目，請改選其他國家或區域。'):items.length?items.map(i=>`
       <details class="place" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
         <summary>${ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
-        <div class="pbody">${i.address?`<p class="addr">${esc(i.address)}</p>`:''}${noteLong(i.note)?`<p class="pnote">${esc(i.note)}</p>`:''}<div class="map"></div>
+        <div class="pbody">${(i.images||[]).length?`<div class="pstrip">${i.images.map(x=>`<img src="${x}" alt="${esc(i.name)}" onclick="zoom(this.src)">`).join('')}</div>`:''}${i.address?`<p class="addr">${esc(i.address)}</p>`:''}${noteLong(i.note)?`<p class="pnote">${esc(i.note)}</p>`:''}<div class="map"></div>
           <div class="plinks">
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}用 Google 地圖開啟</a>
             <button class="ed" onclick="editItem('${type}',${i.id})">${ic('edit')}編輯</button>
@@ -1977,6 +1996,7 @@ function mapPopup(t,i){
   const q=t==='stays'?[i.name,i.address||i.city].filter(Boolean).join(' '):placeQ(i);
   const sub=t==='stays'?[i.city,i.checkin&&(fmtD(i.checkin)+(i.checkout?' → '+fmtD(i.checkout):''))].filter(Boolean).join('・'):loc(i);
   return `<b>${esc(i.name)}</b><div class="pp-s"><span class="pp-i" style="background:${MAPT[t].color}" title="${MAPT[t].label}">${mapSym(t)}</span>${esc(sub)}</div>`
+    +((i.images||[]).length?`<img src="${i.images[0]}" alt="" style="width:100%;max-height:130px;object-fit:cover;border-radius:8px;margin-top:6px">`:'')
     +(i.geoApprox?'<div class="pp-s">位置為大略位置（找不到精確地址）</div>':'')
     +`<div style="margin-top:6px"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}" target="_blank" rel="noopener">用 Google 地圖開啟</a></div>`;
 }
@@ -2251,7 +2271,7 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
 };
 const Cloud=window.__CLOUD||FB;
 const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
-const PHOTO_TYPES=['souvenirs','expenses','tickets','notes'];
+const PHOTO_TYPES=['souvenirs','expenses','tickets','notes','spots','food'];
 const FILE_TYPES=['expenses','tickets','notes'];
 
 function hashStr(str){  // 照片內容指紋：同一張照片只上傳一次
@@ -2512,7 +2532,7 @@ $('checklist-input').addEventListener('keydown',e=>{if(e.key==='Enter')addItem()
   ['country','region','address','note'].forEach(k=>$(t+'-'+k)&&$(t+'-'+k).addEventListener('keydown',e=>{if(e.key==='Enter')askPlace(t)}));
 });
 tzOptions($('note-tz'),jget('travel__tz',DEV_TZ));
-['ticket-photo','ticket-file','souvenir-photo','expense-photo','expense-file','note-photo','note-file'].forEach(pickerInit);
+['ticket-photo','ticket-file','souvenir-photo','expense-photo','expense-file','note-photo','note-file','spots-photo','food-photo'].forEach(pickerInit);
 setInterval(checkAlarms,15000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkAlarms()});
 try{localStorage.removeItem('travel_ocr_ok')}catch(e){}
