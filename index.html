@@ -2358,6 +2358,16 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
     for(const f of ['firebase-app-compat.js','firebase-auth-compat.js','firebase-firestore-compat.js'])
       await new Promise((ok,no)=>{const e=document.createElement('script');e.src=base+f;e.onload=ok;e.onerror=()=>no(new Error('載入失敗：'+f));document.head.appendChild(e)});
     firebase.initializeApp(FIREBASE_CONFIG);this.auth=firebase.auth();this.db=firebase.firestore();
+    // 離線快取：把雲端資料也存一份在這支裝置（IndexedDB），沒網路時照樣能讀，重新開啟時也更快取得資料。
+    // 必須在任何讀寫之前設定；不支援的瀏覽器（部分無痕模式、舊版）會自動略過，不影響其他功能。
+    try{
+      this.db.settings({cacheSizeBytes:100*1024*1024,merge:true});     // 快取上限 100 MB，超過會自動清掉最舊的
+      await this.db.enablePersistence({synchronizeTabs:true});         // 多個分頁同時開著也能共用同一份快取
+      this.persist='on';
+    }catch(e){
+      this.persist='off（'+(e&&e.code||'unknown')+'）';
+      console.warn('Firestore 離線快取未啟用',e);
+    }
   },
   onAuth(cb){this.auth.onAuthStateChanged(cb)},
   async signIn(){
@@ -2603,7 +2613,7 @@ const Sync=(()=>{
         if(it.u>getSync(type+'_'+it.id))un.push(type+'：照片 '+(it.images||[]).length+'、文件 '+(it.files||[]).length+'、約 '+Math.round(JSON.stringify(it).length/1024)+' KB');
       }
       const used=Store.size()+Object.keys(localStorage).filter(k=>k.startsWith('travel_')).reduce((n,k)=>n+(localStorage.getItem(k)||'').length,0);
-      const txt=JSON.stringify({版本:APP_VERSION,狀態:status,錯誤:errText(lastErr),錯誤代碼:lastErr,已登入:!!uid,網路:navigator.onLine,儲存方式:IDB?'IndexedDB':'LocalStorage（舊式，上限約 5 MB）',本機已用字元:used,尚未同步的項目:un,最近錯誤:LOG},null,1);
+      const txt=JSON.stringify({版本:APP_VERSION,離線快取:(Cloud&&Cloud.persist)||'—',狀態:status,錯誤:errText(lastErr),錯誤代碼:lastErr,已登入:!!uid,網路:navigator.onLine,儲存方式:IDB?'IndexedDB':'LocalStorage（舊式，上限約 5 MB）',本機已用字元:used,尚未同步的項目:un,最近錯誤:LOG},null,1);
       (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>alert('已複製診斷資訊，請貼給我。')).catch(()=>prompt('請全選並複製這段文字：',txt));
     },
     signedIn:()=>!!uid,
