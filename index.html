@@ -91,6 +91,12 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);b
 .rem svg{width:16px;height:16px}
 .rem.due{color:var(--danger);outline:1.5px solid var(--danger)}
 .rem.fin{opacity:.6}
+.nsort{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}
+.nsort .seg{display:inline-flex;border:1px solid var(--line,#d8d4cc);border-radius:999px;overflow:hidden;background:var(--paper)}
+.nsort .seg button{border:0;background:transparent;padding:10px 14px;min-height:44px;font:inherit;font-size:.88rem;font-weight:600;color:var(--muted);cursor:pointer}
+.nsort .seg button.on{background:var(--brand);color:var(--on-brand)}
+.nmeta{color:var(--muted);font-size:.78rem}
+.nsep{margin:14px 2px 8px;font-size:.82rem;font-weight:700;color:var(--muted)}
 .lnk{color:var(--brand);font-weight:600;font-size:.85rem;display:inline-flex;align-items:center;gap:6px;padding:6px 0}
 .fl{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
 .fl svg{width:20px;height:20px;flex:none;color:var(--brand)}
@@ -999,6 +1005,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="pv" id="note-file-pv"></div>
       <button class="btn" onclick="addNote(this)">儲存筆記</button>
     </div>
+    <div class="nsort" id="notes-sort"></div>
     <div id="notes-items"></div>
   </section>
 
@@ -1475,11 +1482,30 @@ async function addNote(btn){
     }
   }finally{btn.textContent=label;btn.disabled=false;render()}
 }
+// --- 筆記排序：由最早到最晚（可切換依「提醒時間」或「記錄時間」，也可反向）---
+const NSORT=Object.assign({by:'remind',dir:'asc'},jget('travel__nsort',{}));
+function setNSort(patch){Object.assign(NSORT,patch);jset('travel__nsort',NSORT);render()}
+function sortNotes(list){
+  const k=NSORT.by,m=NSORT.dir==='desc'?-1:1,cmp=(a,b)=>(a-b)*m;
+  return list.slice().sort((a,b)=>{
+    if(k==='remind'){
+      if(a.remind&&b.remind)return cmp(a.remind,b.remind)||cmp(a.id,b.id);
+      if(a.remind)return -1;if(b.remind)return 1;   // 沒設提醒的放最後
+    }
+    return cmp(a.id,b.id);
+  });
+}
+function noteSortBar(n){
+  const bt=(g,v,t)=>`<button type="button" class="${NSORT[g]===v?'on':''}" onclick="setNSort({${g}:'${v}'})">${t}</button>`;
+  return n>1?`<span class="seg" role="group" aria-label="排序依據">${bt('by','remind','依提醒時間')}${bt('by','created','依記錄時間')}</span><span class="seg" role="group" aria-label="排序方向">${bt('dir','asc','最早→最晚')}${bt('dir','desc','最晚→最早')}</span>`:'';
+}
+const fmtCreated=id=>new Date(id).toLocaleString('zh-TW',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
 function noteCard(n){
   const st=n.rdone?'fin':(n.remind&&n.remind<=Date.now()?'due':'');
   const im=n.images||[];
   return `<article class="nt">
     <div class="nh"><b>${esc(n.title||'')}</b>${acts('notes',n.id)}</div>
+    <div class="nmeta">記錄於 ${fmtCreated(n.id)}</div>
     ${n.text?`<div class="tx">${esc(n.text)}</div>`:''}
     ${n.remind?`<div class="rrow"><span class="rem ${st}">${ic('bell')}${fmtRemind(n)}${n.rdone?'（已提醒）':st==='due'?'（時間到了）':''}</span><button class="lnk" onclick="exportIcs(${n.id})">${ic('out')}加到手機行事曆</button></div>`:''}
     ${im.length?`<div class="imgs">${im.map(x=>`<img src="${x}" alt="筆記照片" onclick="zoom(this.src)">`).join('')}</div>`:''}
@@ -1976,7 +2002,15 @@ function render(){
 
   renderStays();renderTransit();
   const nt=Store.get('notes');
-  $('notes-items').innerHTML=nt.length?nt.map(noteCard).join(''):empty('記下重要的事、拍下文件，還能設定提醒時間。');
+  $('notes-sort').innerHTML=noteSortBar(nt.length);
+  {
+    const sorted=sortNotes(nt);let html='',sep=null;
+    sorted.forEach(n=>{
+      if(NSORT.by==='remind'){const g=n.remind?'有提醒時間':'沒有提醒時間';if(g!==sep){sep=g;html+=`<div class="nsep">${g}</div>`}}
+      html+=noteCard(n);
+    });
+    $('notes-items').innerHTML=nt.length?html:empty('記下重要的事、拍下文件，還能設定提醒時間。');
+  }
 
   [['spots','pin','景點'],['food','utensils','餐廳']].forEach(([type,icon,name])=>{
     const all=Store.get(type),F=FILT[type],NONE='__none';
@@ -2393,7 +2427,7 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
 };
 const Cloud=window.__CLOUD||FB;
 const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
-const APP_VERSION='2026.10.10-photo';
+const APP_VERSION='2026.10.10-notesort';
 const PHOTO_TYPES=['souvenirs','expenses','tickets','notes','spots','food'];
 const FILE_TYPES=['expenses','tickets','notes'];
 
