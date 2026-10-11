@@ -1005,6 +1005,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
       <div class="pv" id="note-file-pv"></div>
       <button class="btn" onclick="addNote(this)">儲存筆記</button>
     </div>
+    <div class="pshare">
+      <button type="button" class="fxb" onclick="notesShare()">分享全部筆記</button>
+      <button type="button" class="fxb" onclick="placeBackup('notes')">備份檔（含照片與文件）</button>
+      <label class="fxb">匯入<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0],'notes');this.value=''"></label>
+    </div>
     <div class="nsort" id="notes-sort"></div>
     <div id="notes-items"></div>
   </section>
@@ -1510,7 +1515,40 @@ function noteCard(n){
     ${n.remind?`<div class="rrow"><span class="rem ${st}">${ic('bell')}${fmtRemind(n)}${n.rdone?'（已提醒）':st==='due'?'（時間到了）':''}</span><button class="lnk" onclick="exportIcs(${n.id})">${ic('out')}加到手機行事曆</button></div>`:''}
     ${im.length?`<div class="imgs">${im.map(x=>`<img src="${x}" alt="筆記照片" onclick="zoom(this.src)">`).join('')}</div>`:''}
     ${fileRows('notes',n)}
+    <div class="rrow"><button class="lnk" onclick="noteShare(${n.id})">${ic('out')}分享這則筆記</button></div>
   </article>`;
+}
+// --- 筆記分享：文字（LINE 等）；單則筆記有照片時，裝置支援就連照片一起分享 ---
+function noteText(n,i){
+  const head=(i!=null?(i+1)+'. ':'')+noteTitle(n);
+  const body=n.text&&n.text.trim()!==noteTitle(n)?'\n'+String(n.text).replace(/\n/g,'\n   '):'';
+  const rem=n.remind?'\n⏰ '+fmtRemind(n):'';
+  const att=[(n.images||[]).length?(n.images.length+' 張照片'):'',(n.files||[]).length?(n.files.length+' 個文件'):''].filter(Boolean).join('、');
+  return head+body+rem+(att?'\n（附 '+att+'，請用「備份檔」傳送）':'');
+}
+async function shareText(title,text){
+  try{
+    if(navigator.share){await navigator.share({title,text});return}
+    await navigator.clipboard.writeText(text);alert('已複製內容，可以貼到 LINE 或其他 App。');
+  }catch(e){if(e&&e.name==='AbortError')return;prompt('請全選並複製這段文字：',text)}
+}
+function notesShare(){
+  const list=sortNotes(Store.get('notes'));
+  if(!list.length){alert('目前沒有筆記可以分享。');return}
+  const title='生活筆記　共 '+list.length+' 則';
+  shareText(title,title+'\n\n'+list.map((n,i)=>noteText(n,i)).join('\n\n'));
+}
+async function noteShare(id){
+  const n=Store.get('notes').find(x=>x.id===id);if(!n)return;
+  const title=noteTitle(n),text=noteText(n);
+  try{
+    const imgs=n.images||[];
+    if(imgs.length&&navigator.canShare){
+      const files=await Promise.all(imgs.map(async(u,i)=>{const b=await (await fetch(u)).blob();return new File([b],'note-'+id+'-'+(i+1)+'.'+((b.type.split('/')[1]||'jpg').replace('jpeg','jpg')),{type:b.type||'image/jpeg'})}));
+      if(navigator.canShare({files})){await navigator.share({files,title,text});return}
+    }
+  }catch(e){if(e&&e.name==='AbortError')return}
+  shareText(title,text);
 }
 const SHOWN=new Set();
 function beep(){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();setTimeout(()=>{o.stop();c.close()},350)}catch(e){}}
@@ -2277,7 +2315,7 @@ function ppPrint(){
 }
 
 // === 景點／餐廳：分享清單與備份檔 ===
-const PNAME={spots:'必逛景點',food:'必吃餐廳',stays:'住宿',souvenirs:'伴手禮',transit:'交通地點'};
+const PNAME={spots:'必逛景點',food:'必吃餐廳',stays:'住宿',souvenirs:'伴手禮',transit:'交通地點',notes:'生活筆記'};
 function placeView(type){
   const F=FILT[type],NONE='__none';
   return Store.get(type).filter(i=>(!F.c||(i.country||'').trim()===(F.c===NONE?'':F.c))&&(!F.r||(i.region||'').trim()===(F.r===NONE?'':F.r)));
@@ -2427,7 +2465,7 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
 };
 const Cloud=window.__CLOUD||FB;
 const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
-const APP_VERSION='2026.10.10-notesort';
+const APP_VERSION='2026.10.11-notesshare';
 const PHOTO_TYPES=['souvenirs','expenses','tickets','notes','spots','food'];
 const FILE_TYPES=['expenses','tickets','notes'];
 
