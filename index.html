@@ -2523,7 +2523,7 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
 };
 const Cloud=window.__CLOUD||FB;
 const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
-const APP_VERSION='2026.10.11-tripbar';
+const APP_VERSION='2026.10.11-tripuser';
 const PHOTO_TYPES=['souvenirs','expenses','tickets','notes','spots','food'];
 const FILE_TYPES=['expenses','tickets','notes'];
 
@@ -2696,7 +2696,7 @@ const Sync=(()=>{
   function relisten(ms){clearTimeout(retry);relistenMs=relistenMs?Math.min(relistenMs*2,300000):ms;retry=setTimeout(()=>{if(uid)listen()},relistenMs)}
 
   function onUser(u){
-    if(!u){stop();uid=null;user=null;setStatus('out');return}
+    if(!u){stop();uid=null;user=null;setStatus('out');tripUser('');return}
     const prev=localStorage.getItem('travel__uid');
     if(prev&&prev!==u.uid){
       if(!confirm('這個瀏覽器目前存的是另一個帳號的資料。\n登入「'+(u.email||'這個帳號')+'」後，會換成這個帳號的雲端資料。\n（原本帳號的資料仍保留在它的雲端，之後登入還能取回。）\n\n要繼續嗎？')){Cloud.signOut();return}
@@ -2705,6 +2705,7 @@ const Sync=(()=>{
       render();
     }
     localStorage.setItem('travel__uid',u.uid);
+    tripUser(u.email);
     uid=u.uid;user=u;setStatus('sync');listen();
   }
   async function boot(){
@@ -2790,7 +2791,17 @@ $('app-ver').textContent=APP_VERSION;
 setInterval(checkAlarms,15000);
 
 // === 標題列：出發倒數／旅遊第 x 天，與所在地・當地時間・即時氣候 ===
-const TRIP={start:Date.UTC(2026,9,12,15,25),end:Date.UTC(2026,9,27,22,30)};   // 台北 2026/10/12 23:25 ～ 2026/10/28 06:30
+// 旅程時間（預設：台北 2026/10/12 23:25 ～ 2026/10/28 06:30）；個別帳號可以有自己的日期（用登入 email 對應）
+const TRIP_DEFAULT={start:Date.UTC(2026,9,12,15,25),end:Date.UTC(2026,9,27,22,30)};
+const TRIP_USERS={
+  'monicahu.0811@gmail.com':{start:Date.UTC(2026,9,16,16,0),end:Date.UTC(2026,9,31,16,0)}   // 台北 2026/10/17 00:00 ～ 2026/10/31 24:00
+};
+let TRIP=TRIP_USERS[(localStorage.getItem('travel__email')||'').toLowerCase()]||TRIP_DEFAULT;
+function tripUser(email){
+  email=(email||'').toLowerCase();TRIP=TRIP_USERS[email]||TRIP_DEFAULT;
+  try{email?localStorage.setItem('travel__email',email):localStorage.removeItem('travel__email')}catch(e){}
+  tripTick();
+}
 function tripLine(now){
   if(now<TRIP.start){
     let s=Math.floor((TRIP.start-now)/1000);const d=Math.floor(s/86400);s%=86400;const h=Math.floor(s/3600);s%=3600;const m=Math.floor(s/60);s%=60;
