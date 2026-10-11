@@ -6,8 +6,8 @@
 <meta name="theme-color" content="#0B4F57">
 <title>旅行隨身筆記本</title>
 <style>
-:root{--bg:#EDF2F3;--paper:#fff;--ink:#14252C;--muted:#5D6F77;--line:#D5DFE2;--brand:#0E6A73;--on-brand:#fff;--soft:#E1EEF0;--head:#0B4F57;--accent:#E8A33D;--danger:#B3402F;--r:14px}
-@media (prefers-color-scheme:dark){:root{--bg:#0E1A1F;--paper:#16262D;--ink:#E7F0F2;--muted:#93A8AF;--line:#27404A;--brand:#5CC2CB;--on-brand:#08262A;--soft:#1D3A42;--head:#0A3A41;--danger:#E8806F}}
+:root{--bg:#EDF2F3;--paper:#fff;--ink:#14252C;--muted:#5D6F77;--line:#D5DFE2;--brand:#0E6A73;--on-brand:#fff;--soft:#E1EEF0;--head:#0B4F57;--accent:#E8A33D;--danger:#B3402F;--r:14px;--visited:#A8B3B8}
+@media (prefers-color-scheme:dark){:root{--bg:#0E1A1F;--paper:#16262D;--ink:#E7F0F2;--muted:#93A8AF;--line:#27404A;--brand:#5CC2CB;--on-brand:#08262A;--soft:#1D3A42;--head:#0A3A41;--danger:#E8806F;--visited:#62767D}}
 *{box-sizing:border-box;margin:0}
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;padding-bottom:calc(100px + env(safe-area-inset-bottom))}
@@ -147,6 +147,16 @@ details.place{background:var(--paper);border-radius:var(--r);margin-bottom:10px;
 details.place summary{list-style:none;display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer;font-weight:600}
 details.place summary::-webkit-details-marker{display:none}
 details.place summary b{flex:1;overflow-wrap:anywhere}
+.vchk{flex:none;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 6px;margin:-4px 0;color:var(--muted);border-radius:10px}
+.vchk em{font-style:normal;font-size:.62rem;font-weight:400;line-height:1;white-space:nowrap}
+.vchk .bx{width:26px;height:26px;border-radius:8px;border:2px solid var(--muted);display:grid;place-items:center}
+.vchk .bx svg{opacity:0;stroke-width:3;width:16px;height:16px}
+details.place summary .vchk .bx svg{color:inherit}
+.vchk[aria-pressed=true] .bx{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.vchk[aria-pressed=true] .bx svg{opacity:1}
+.vchk[aria-pressed=true]{color:var(--brand)}
+details.place.visited summary b,details.place.visited summary small,details.place.visited summary .pn,details.place.visited .addr,details.place.visited .pnote{color:var(--visited)}
+details.place.visited summary .pth,details.place.visited summary>svg{opacity:.5}
 details.place{border-left:6px solid var(--cc,transparent)}
 #pp{width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;background:#dfe5e8;border:0}
 #pp[open]{display:flex;flex-direction:column}
@@ -1654,6 +1664,12 @@ function toggleCheck(id){
   const d=Store.get('checklist'),i=d.find(x=>x.id===id);
   if(i)i.checked=!i.checked;Store.set('checklist',d);render();
 }
+function toggleVisited(type,id,btn){
+  const d=Store.get(type),i=d.find(x=>x.id===id);if(!i)return;
+  const on=!i.visited;if(on)i.visited=true;else delete i.visited;
+  if(!Store.set(type,d)){render();return}
+  btn.setAttribute('aria-pressed',on);btn.closest('details').classList.toggle('visited',on);   // 就地更新，不會把已展開的項目收起來
+}
 function deleteItem(type,id){
   if(!confirm('確定要刪除這個項目嗎？'))return;
   Store.set(type,Store.get(type).filter(i=>i.id!==id));render();
@@ -2129,8 +2145,8 @@ function render(){
       <label>區域<select onchange="setFilt('${type}','r',this.value)"><option value="">全部區域（${pool.length}）</option>${regions.map(r=>opt(r,(F.r===NONE?'':F.r)===r&&!!F.r,pool.filter(i=>rOf(i)===r).length)).join('')}</select></label>
       ${(F.c||F.r)?`<p class="fcount">顯示 ${items.length} / ${all.length} 筆 · <a href="#" onclick="setFilt('${type}','c','');return false">清除篩選</a></p>`:''}`:'';
     $(type+'-items').innerHTML=all.length&&!items.length?empty('沒有符合的項目，請改選其他國家或區域。'):items.length?items.map((i,n)=>head(i,n)+`
-      <details class="place" style="--cc:${countryColor(cOf(i))}" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
-        <summary>${(i.images||[]).length?`<img class="pth" src="${i.images[0]}" alt="">`:ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small><span class="cdot" style="background:${countryColor(cOf(i))}"></span>${esc(loc(i))}</small>`:''}</b><span class="chev">${ic('down')}</span></summary>
+      <details class="place${i.visited?' visited':''}" style="--cc:${countryColor(cOf(i))}" data-name="${esc(i.name)}" data-q="${esc(placeQ(i))}" ontoggle="loadMap(this)">
+        <summary>${(i.images||[]).length?`<img class="pth" src="${i.images[0]}" alt="">`:ic(icon)}<b>${esc(i.name)}${i.note?`<span class="pn">${esc(noteShort(i.note))}</span>`:''}${loc(i)?`<small><span class="cdot" style="background:${countryColor(cOf(i))}"></span>${esc(loc(i))}</small>`:''}</b><button type="button" class="vchk" aria-pressed="${!!i.visited}" aria-label="標記為已拜訪" onclick="event.preventDefault();event.stopPropagation();toggleVisited('${type}',${i.id},this)"><span class="bx">${ic('check')}</span><em>已拜訪</em></button><span class="chev">${ic('down')}</span></summary>
         <div class="pbody">${(i.images||[]).length?`<div class="pstrip">${i.images.map(x=>`<img src="${x}" alt="${esc(i.name)}" onclick="zoom(this.src)">`).join('')}</div>`:''}${i.address?`<p class="addr">${esc(i.address)}</p>`:''}${noteLong(i.note)?`<p class="pnote">${esc(i.note)}</p>`:''}<div class="map"></div>
           <div class="plinks">
             <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}" target="_blank" rel="noopener">${ic('out')}用 Google 地圖開啟</a>
@@ -2383,7 +2399,7 @@ async function placeShare(type){
   if(!list.length){alert('目前沒有可以分享的項目。');return}
   const F=FILT[type],scope=[F.c,F.r].filter(Boolean).map(x=>x==='__none'?'未填':x).join(' · ');
   const title=`${PNAME[type]}${scope?'（'+scope+'）':''}　共 ${list.length} 筆`;
-  const text=title+'\n\n'+list.map((i,n)=>`${n+1}. ${i.name}\n   ${[loc(i),i.address].filter(Boolean).join(' ｜ ')}${i.note?'\n   備註：'+String(i.note).replace(/\n/g,'\n   '):''}\n   https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}`).join('\n\n');
+  const text=title+'\n\n'+list.map((i,n)=>`${n+1}. ${i.name}${i.visited?'（已拜訪）':''}\n   ${[loc(i),i.address].filter(Boolean).join(' ｜ ')}${i.note?'\n   備註：'+String(i.note).replace(/\n/g,'\n   '):''}\n   https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(placeQ(i))}`).join('\n\n');
   try{
     if(navigator.share){await navigator.share({title,text});return}
     await navigator.clipboard.writeText(text);alert('已複製清單，可以貼到 LINE 或其他 App。');
@@ -2523,7 +2539,7 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
 };
 const Cloud=window.__CLOUD||FB;
 const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
-const APP_VERSION='2026.10.11-tripuser';
+const APP_VERSION='2026.10.11-visited';
 const PHOTO_TYPES=['souvenirs','expenses','tickets','notes','spots','food'];
 const FILE_TYPES=['expenses','tickets','notes'];
 
