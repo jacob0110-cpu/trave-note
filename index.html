@@ -84,6 +84,12 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);b
 .nt .nh{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
 .nt .nh b{overflow-wrap:anywhere;line-height:1.4}
 .nt .tx{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6}
+.txw .tx{max-height:4.8em;overflow:hidden}
+.txw.clip .tx{-webkit-mask-image:linear-gradient(#000 calc(100% - 1.4em),transparent);mask-image:linear-gradient(#000 calc(100% - 1.4em),transparent)}
+.txw .grip{display:none;height:26px;margin-top:2px;align-items:center;justify-content:center;cursor:ns-resize;touch-action:none;border-radius:8px;-webkit-user-select:none;user-select:none}
+.txw.over .grip{display:flex}
+.txw .grip i{display:block;width:44px;height:5px;border-radius:9px;background:var(--line)}
+.txw .grip:hover i,.txw .grip:focus-visible i,.txw .grip.drag i{background:var(--brand)}
 .nt .imgs{display:grid;gap:8px}
 .nt .imgs img{width:100%;border-radius:12px;display:block;cursor:zoom-in}
 .rrow{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
@@ -1511,7 +1517,7 @@ function noteCard(n){
   return `<article class="nt">
     <div class="nh"><b>${esc(n.title||'')}</b>${acts('notes',n.id)}</div>
     <div class="nmeta">記錄於 ${fmtCreated(n.id)}</div>
-    ${n.text?`<div class="tx">${esc(n.text)}</div>`:''}
+    ${n.text?`<div class="txw" data-id="${n.id}"><div class="tx"${TXH[n.id]?` style="max-height:${TXH[n.id]}px"`:''}>${esc(n.text)}</div><div class="grip" role="separator" aria-orientation="horizontal" aria-label="拖拉調整內容顯示範圍（雙擊展開／收合）" tabindex="0"><i></i></div></div>`:''}
     ${n.remind?`<div class="rrow"><span class="rem ${st}">${ic('bell')}${fmtRemind(n)}${n.rdone?'（已提醒）':st==='due'?'（時間到了）':''}</span><button class="lnk" onclick="exportIcs(${n.id})">${ic('out')}加到手機行事曆</button></div>`:''}
     ${im.length?`<div class="imgs">${im.map(x=>`<img src="${x}" alt="筆記照片" onclick="zoom(this.src)">`).join('')}</div>`:''}
     ${fileRows('notes',n)}
@@ -1550,6 +1556,49 @@ async function noteShare(id){
   }catch(e){if(e&&e.name==='AbortError')return}
   shareText(title,text);
 }
+// --- 筆記內容：預設顯示約 3 行，拖拉下方橫條可放大／縮小顯示範圍 ---
+const TXH=jget('travel__txh',{});
+function txFit(w){
+  const t=w.firstElementChild;if(!t||!t.clientWidth)return;            // 分頁隱藏時先不量
+  const base=parseFloat(getComputedStyle(t).fontSize)*4.8,full=t.scrollHeight;
+  const cur=t.style.maxHeight?parseFloat(t.style.maxHeight):base;
+  w.classList.toggle('over',full>base+2);
+  w.classList.toggle('clip',full>cur+2);
+}
+function txFitAll(){document.querySelectorAll('#notes-items .txw').forEach(txFit)}
+function txSet(w,h,save){
+  const t=w.firstElementChild,base=parseFloat(getComputedStyle(t).fontSize)*4.8,full=t.scrollHeight;
+  h=Math.max(base,Math.min(full,h));
+  t.style.maxHeight=h+'px';txFit(w);
+  if(save){const id=w.dataset.id;if(h<=base+2)delete TXH[id];else TXH[id]=Math.round(h);jset('travel__txh',TXH)}
+}
+(function(){
+  const box=document.getElementById('notes-items');let d=null;
+  box.addEventListener('pointerdown',e=>{
+    const g=e.target.closest('.grip');if(!g)return;
+    const w=g.parentNode;d={w,g,y:e.clientY,h:w.firstElementChild.getBoundingClientRect().height,moved:false};
+    g.setPointerCapture(e.pointerId);g.classList.add('drag');e.preventDefault();
+  });
+  box.addEventListener('pointermove',e=>{
+    if(!d)return;if(Math.abs(e.clientY-d.y)>3)d.moved=true;
+    txSet(d.w,d.h+(e.clientY-d.y),false);
+  });
+  const end=e=>{if(!d)return;d.g.classList.remove('drag');txSet(d.w,d.w.firstElementChild.getBoundingClientRect().height,true);d=null};
+  box.addEventListener('pointerup',end);box.addEventListener('pointercancel',end);
+  box.addEventListener('dblclick',e=>{
+    const g=e.target.closest('.grip');if(!g)return;
+    const w=g.parentNode,t=w.firstElementChild,open=t.scrollHeight>t.getBoundingClientRect().height+2;
+    txSet(w,open?t.scrollHeight:0,true);
+  });
+  box.addEventListener('keydown',e=>{
+    const g=e.target.closest('.grip');if(!g)return;
+    const w=g.parentNode,t=w.firstElementChild,h=t.getBoundingClientRect().height;
+    if(e.key==='ArrowDown'){txSet(w,h+24,true);e.preventDefault()}
+    else if(e.key==='ArrowUp'){txSet(w,h-24,true);e.preventDefault()}
+    else if(e.key==='Enter'||e.key===' '){const open=t.scrollHeight>h+2;txSet(w,open?t.scrollHeight:0,true);e.preventDefault()}
+  });
+  window.addEventListener('resize',txFitAll);
+})();
 const SHOWN=new Set();
 function beep(){try{const c=new (window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.15;o.start();setTimeout(()=>{o.stop();c.close()},350)}catch(e){}}
 function checkAlarms(){
@@ -1584,6 +1633,7 @@ function switchTab(id){
   if(cur)cur.scrollIntoView({inline:'center',block:'nearest',behavior:'smooth'});
   window.scrollTo(0,0);
   if(id==='map')mapShow();
+  if(id==='notes')txFitAll();
 }
 
 // === 清單 ===
@@ -2048,6 +2098,7 @@ function render(){
       html+=noteCard(n);
     });
     $('notes-items').innerHTML=nt.length?html:empty('記下重要的事、拍下文件，還能設定提醒時間。');
+    txFitAll();
   }
 
   [['spots','pin','景點'],['food','utensils','餐廳']].forEach(([type,icon,name])=>{
@@ -2465,7 +2516,7 @@ const FB={  // Firebase 實際操作（集中在這裡，其他程式不直接�
 };
 const Cloud=window.__CLOUD||FB;
 const CLOUD_ON=!!(window.__CLOUD||(FIREBASE_CONFIG.apiKey&&FIREBASE_CONFIG.projectId));
-const APP_VERSION='2026.10.11-notesshare';
+const APP_VERSION='2026.10.11-notesresize';
 const PHOTO_TYPES=['souvenirs','expenses','tickets','notes','spots','food'];
 const FILE_TYPES=['expenses','tickets','notes'];
 
